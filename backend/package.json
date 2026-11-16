@@ -12,11 +12,11 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json",
-    "test": "pnpm run build && vitest run",
-    "test:watch": "pnpm run build && vitest",
-    "migration:run": "typeorm-ts-node-commonjs migration:run -d src/database/data-source.ts",
+    "test": "npm run build && vitest run",
+    "test:watch": "npm run build && vitest",
+    "migration:run": "ts-node -r dotenv/config ./node_modules/typeorm/cli.js migration:run -d src/database/data-source.ts",
+    "migration:generate": "node -e \"require('dotenv').config(); require('child_process').execSync('npx typeorm-ts-node-commonjs migration:generate -d src/database/data-source.ts src/database/migrations/' + process.argv[1], { stdio: 'inherit' })\"",
     "migration:revert": "typeorm-ts-node-commonjs migration:revert -d src/database/data-source.ts",
-    "migration:generate": "typeorm-ts-node-commonjs migration:generate -d src/database/data-source.ts",
     "migration:show": "typeorm-ts-node-commonjs migration:show -d src/database/data-source.ts"
   },
   "dependencies": {

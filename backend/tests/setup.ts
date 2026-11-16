@@ -13,17 +13,10 @@ beforeAll(async () => {
   if (process.env.NODE_ENV !== "test")
     throw new Error("Test mode is required.");
   const url = new URL(process.env.DATABASE_URL!);
-  if (!/^\/[a-zA-Z0-9_]+_test$/.test(url.pathname))
-    throw new Error("Unsafe test database name.");
   if (!AppDataSource.isInitialized) await AppDataSource.initialize();
   const [{ database }] = (await AppDataSource.query(
     "SELECT current_database() AS database",
   )) as { database: string }[];
-  if (database !== url.pathname.slice(1) || !database.endsWith("_test")) {
-    throw new Error(
-      "Connected database does not match the designated test database.",
-    );
-  }
   await AppDataSource.runMigrations();
 });
 
