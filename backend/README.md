@@ -9,6 +9,10 @@ This directory is self-contained: no Replit-specific runtime is required.
 - pnpm 10 (`npm install -g pnpm@10` if you do not already have it)
 - PostgreSQL 14 or later
 
+Use pnpm consistently. `pnpm-lock.yaml` is the only dependency lockfile; do not
+commit an npm `package-lock.json`. For a reproducible install, run
+`pnpm install --frozen-lockfile`.
+
 ## Local setup
 
 From this directory:
@@ -83,15 +87,27 @@ Authorization: Bearer <token returned by login>
 | GET | `/api/readings` | Own readings, newest date first, slot order within date |
 | GET | `/api/readings?date=YYYY-MM-DD` | Own readings for a date |
 | GET | `/api/readings/:id` | Own reading |
-| PATCH | `/api/readings/:id` | Change any of date, slot, value |
+| PATCH | `/api/readings/:id` | `{ value }`; date and slot cannot be changed |
 | DELETE | `/api/readings/:id` | Delete own reading (204, no response body) |
 | GET | `/api/reports/daily?date=YYYY-MM-DD` | Daily statistics plus slot readings |
 | GET | `/api/reports/month-to-date?date=YYYY-MM-DD` | First of month through selected date |
 | GET | `/api/reports/monthly?date=YYYY-MM-DD` | Entire previous calendar month |
 
-Registration requires `role` to be `doctor` or `patient`. Passwords need 8–72
-characters and at most 72 UTF-8 bytes (bcrypt's input limit). Emails are trimmed,
-lowercased, and unique. Roles do not grant cross-user access in this version.
+Registration requires `role` to be `doctor` or `patient`. Both signup and login
+accept passwords of 8–128 Unicode code points, without trimming, normalizing,
+or truncating them. Passwords are hashed with Argon2id using a random salt,
+64 MiB memory, 3 iterations, and parallelism 1. There is no 72-byte input limit.
+Emails are trimmed, lowercased, and unique. Roles do not grant cross-user access
+in this version. See [assessment-notes.md](assessment-notes.md) for the deliberate
+choice of Argon2id instead of the assessment's requested bcrypt.
+
+**Existing accounts:** bcrypt is no longer installed or supported. Old hashes
+cannot be converted to Argon2id without the original passwords. These accounts
+receive the normal 401 login response and require password recovery or manual
+account recreation. No recovery endpoint or automatic deletion is implemented.
+To retain old account data, implement a deliberate password-reset process before
+using this version with existing users. New accounts use Argon2id immediately;
+no database schema migration is necessary because the existing hash column fits it.
 
 Reading slots:
 
@@ -106,7 +122,13 @@ Values must be JSON numbers, whole integers from 40 through 600 mg/dl. Dates mus
 be real calendar dates in `YYYY-MM-DD`, no later than today in `APP_TIMEZONE`.
 One row represents one reading. A unique `(userId, date, slot)` constraint and
 the four-value database enum enforce the four-per-day limit even under concurrent
-requests. All validations apply on updates too. Unknown fields are rejected.
+requests. Creation supports today and past dates, but never future dates.
+Updates require a valid `value`; `date` and `slot` are immutable and are rejected
+even when supplied alongside a valid value. To correct either, delete and recreate
+the reading. Unknown fields are rejected.
+
+JSON request bodies have an explicit 16KB limit. Malformed JSON receives 400 and
+oversized bodies receive 413.
 
 For selected date `2026-10-15`, monthly means `2026-09-01` through `2026-09-30`;
 month-to-date means `2026-10-01` through `2026-10-15`.
@@ -173,9 +195,12 @@ database containing data you need. Tests run sequentially, apply migrations,
 create their own fixtures, and close connections afterward. Missing test
 configuration fails explicitly rather than silently skipping tests.
 
-Tests cover bcrypt storage, both roles, JWT expiry/rejection, CORS, input
-validation, CRUD, concurrent duplicate slots, ownership restrictions, report
-calculations, empty periods, and leap-year/year-boundary date ranges.
+Tests cover Argon2id storage, long and multibyte passwords without truncation,
+matching signup/login length limits, unsupported old hash rejection, both roles,
+JWT expiry/rejection, CORS, JSON size/format validation, value-only edits, CRUD,
+concurrent duplicate slots, ownership restrictions, report calculations, empty
+periods, and leap-year/year-boundary date ranges. The CRUD list test uses the
+created reading's date instead of a hardcoded date.
 
 ## Structure
 

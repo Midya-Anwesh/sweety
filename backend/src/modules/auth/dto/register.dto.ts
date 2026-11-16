@@ -1,6 +1,7 @@
 import { Transform } from 'class-transformer';
 import { IsDefined, IsEmail, IsEnum, IsString, Length, MaxLength } from 'class-validator';
 import { UserRole } from '../../users/user-role.enum';
+import { PASSWORD_MIN_LENGTH, PASSWORD_MAX_LENGTH } from '../../../common/auth/password-policy';
 
 export class RegisterDto {
   @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
@@ -14,7 +15,7 @@ export class RegisterDto {
   email!: string;
 
   @IsString()
-  @Length(8, 72)
+  @Length(PASSWORD_MIN_LENGTH, PASSWORD_MAX_LENGTH)
   password!: string;
 
   @IsDefined()
