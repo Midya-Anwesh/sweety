@@ -1,9 +1,8 @@
-import { IsEnum, IsInt, IsString, Max, Min, ValidateIf } from "class-validator";
-import { ReadingSlot } from "../reading-slot.enum";
+import { IsInt, Max, Min } from 'class-validator';
 
-// Unlike IsOptional, ValidateIf allows omission but still rejects null.
+// Date and slot are immutable; correcting either requires recreating the reading.
 export class UpdateReadingDto {
-  @IsInt({ message: "Value must be a whole number between 40 and 600 mg/dl." })
+  @IsInt({ message: 'Value must be a whole number between 40 and 600 mg/dl.' })
   @Min(40)
   @Max(600)
   value!: number;
