@@ -9,19 +9,30 @@ const { Reading } =
 const { User } =
   require("../dist/modules/users/user.entity") as typeof import("../src/modules/users/user.entity");
 
+let safeToClean = false;
+
 beforeAll(async () => {
   if (process.env.NODE_ENV !== "test")
     throw new Error("Test mode is required.");
-  const url = new URL(process.env.DATABASE_URL!);
+  const testUrl = process.env.TEST_DATABASE_URL;
+  if (!testUrl || process.env.DATABASE_URL !== testUrl ||
+      !("url" in AppDataSource.options) || AppDataSource.options.url !== testUrl) {
+    throw new Error("Tests must connect exclusively to TEST_DATABASE_URL.");
+  }
   if (!AppDataSource.isInitialized) await AppDataSource.initialize();
   const [{ database }] = (await AppDataSource.query(
     "SELECT current_database() AS database",
   )) as { database: string }[];
+  const expectedDatabase = decodeURIComponent(new URL(testUrl).pathname.slice(1));
+  if (database !== expectedDatabase) {
+    throw new Error("Connected database does not match TEST_DATABASE_URL.");
+  }
   await AppDataSource.runMigrations();
+  safeToClean = true;
 });
 
-beforeEach(async () => {
-  // This database is exclusively for tests. Never point it at data you need.
+async function cleanTestData() {
+  if (!safeToClean) throw new Error("Refusing cleanup: test database setup did not succeed.");
   await AppDataSource.getRepository(Reading)
     .createQueryBuilder()
     .delete()
@@ -30,18 +41,17 @@ beforeEach(async () => {
     .createQueryBuilder()
     .delete()
     .execute();
-});
+}
+
+beforeEach(cleanTestData);
 
 afterAll(async () => {
   if (AppDataSource.isInitialized) {
-    await AppDataSource.getRepository(Reading)
-      .createQueryBuilder()
-      .delete()
-      .execute();
-    await AppDataSource.getRepository(User)
-      .createQueryBuilder()
-      .delete()
-      .execute();
-    await AppDataSource.destroy();
+    try {
+      if (safeToClean) await cleanTestData();
+    } finally {
+      safeToClean = false;
+      await AppDataSource.destroy();
+    }
   }
 });

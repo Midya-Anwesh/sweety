@@ -24,38 +24,55 @@ collection; no live account, reading, update or deletion was performed.
 
 ## Base URL
 
-Every request uses `{{base_url}}/api/...`.
+Every request uses `{{BASE_URL}}/api/...`.
 
 ```text
-base_url = https://sweety-qj4d.onrender.com
+BASE_URL = https://sweety-qj4d.onrender.com
+APP_TIMEZONE = Asia/Kolkata
 ```
 
 Do not append `/api` or a trailing slash. For local testing, duplicate the
-environment and change `base_url` to `http://localhost:3000`. Keep local and
-deployed credentials/tokens in different environments.
+environment and change `BASE_URL` to `http://localhost:3000`.
+Changing the origin automatically clears saved collection credentials, token,
+IDs and dates before the next request, preventing cross-server reuse.
 
 ## Variables
 
+The environment contains **exactly two fields**:
+
 | Environment variable | Initial value / behavior |
 | --- | --- |
-| `base_url` | Render origin above; required |
-| `app_timezone` | `Asia/Kolkata`; must match the backend's `APP_TIMEZONE` |
+| `BASE_URL` | Render origin above; required |
+| `APP_TIMEZONE` | `Asia/Kolkata`; must match the backend's `APP_TIMEZONE` |
+
+Request payload fields and saved request state are **collection variables**, not
+environment settings. Open the collection → **Variables** to view or change them:
+
+| Collection variable | Initial value / behavior |
+| --- | --- |
 | `name` | `Postman Demo Patient` |
 | `role` | `patient`; can be changed to `doctor`, which still has own-data access only |
 | `email` | Blank; Register generates a unique synthetic address if empty |
-| `password` | Blank, marked sensitive; Register generates a random demo password if empty |
-| `access_token` | Blank, marked sensitive; Login fills it automatically |
+| `password` | Blank; Register generates a random demo password if empty |
+| `access_token` | Blank; Login fills it automatically |
 | `user_id` | Set by successful Register/Login |
-| `reading_date` | Blank; filled once with today in `app_timezone`; can be set to a past date |
+| `reading_date` | Blank; filled once with today in `APP_TIMEZONE`; can be set to a past date |
 | `reading_slot` | `morning_fasting`; also accepts `after_breakfast`, `after_lunch`, `after_dinner` |
 | `reading_id` | Saved only by a successful Create request |
 | `selected_date` | Defaults once to `reading_date`; used by all three report queries |
 | `created_reading_id` | Cleanup guard; do not edit manually |
 | `deleted_reading_id` | Saved after a successful DELETE for the final 404 check |
+| `active_base_url` | Internal guard; automatically tracks the selected server |
 
 No real password or token is bundled. Postman stores generated demo credentials
-in the selected environment. Do not commit or share populated exports, and
+in collection variables, which may sync with your Postman workspace and are not
+a secret vault. Use synthetic accounts only with this saved workflow.
+Do not commit or share populated **collection** exports, and
 remember that Postman Console can display request Authorization headers.
+
+For all endpoint payload structures, success response JSON and failure behavior,
+see **[API reference](../api-reference.md)**. The same success examples and status
+descriptions are included on each request inside Postman.
 
 ## Common workflows
 
@@ -71,7 +88,9 @@ automatic retry of a POST, PATCH, or DELETE.
 
 ### Existing account, read-only exploration
 
-Set your credentials locally in Postman. Send **Login** (not Register), then
+First send Health to select/warm up the server (this clears state on origin
+changes). Set synthetic account credentials in collection Variables.
+Send **Login** (not Register), then
 **Current user**, either list endpoint, or reports. Do not run the entire
 collection or cleanup against an important account. Login clears old reading
 IDs to prevent an account switch from carrying over cleanup targets.
@@ -141,8 +160,9 @@ npx newman run sweety.postman_collection.json \
 
 This runs the **write-enabled** full lifecycle against Render by default.
 For a read-only warm-up, add `--folder "00 — Health and cold-start warm-up"`.
-Newman's environment changes are in memory unless explicitly exported; if you
-choose to export, protect the file because it contains demo credentials/token.
+Newman's collection-variable changes are in memory unless you explicitly export
+the collection. Protect a populated collection export: it contains demo
+credentials/token. The environment remains limited to the two deployment settings.
 On Windows PowerShell, place the command on one line or use backticks instead
 of shell backslash continuations.
 

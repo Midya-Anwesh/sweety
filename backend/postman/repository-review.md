@@ -1,5 +1,13 @@
 # Backend review before frontend integration
 
+**Update:** test routing now explicitly requires `TEST_DATABASE_URL`, checks the
+DataSource target and connected database name before migrations, and gates all
+cleanup on successful setup. Six offline configuration checks were added.
+A `_test` suffix/marker/extra opt-in is not required: the owner has provisioned
+a separate test database. Supply that URL; aliases of the live database are
+not guaranteed detectable. The original review below is historical; the
+environment-example and migration-history findings remain separate concerns.
+
 Reviewed repository state: `b487174` (following `94834d2`).
 This document records findings, not applied fixes. No live database was inspected,
 migrated, reset, or used for integration tests.

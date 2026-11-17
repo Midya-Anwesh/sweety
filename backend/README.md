@@ -76,6 +76,10 @@ environment, token/reading ID capture and example responses, see
 **[postman/README.md](postman/README.md)**. Set a 180-second request timeout for
 the first Render call. Running the full collection creates a demo account and
 creates, edits and deletes its test reading; importing alone sends nothing.
+The Postman environment has only `BASE_URL` and `APP_TIMEZONE`. Payload fields
+and captured tokens/IDs are collection variables. See the
+**[complete API reference](api-reference.md)** for each request payload, success
+response shape, and error behavior.
 
 All endpoints accept/return JSON. Protected endpoints require:
 
@@ -194,12 +198,35 @@ by Vitest. No separately running HTTP server and no mocked database are needed.
 They compile application code first because controller decorators need TypeScript
 metadata. Each test reads as: prepare data → request endpoint → check response.
 
-`TEST_DATABASE_URL` must point to a **dedicated empty test database** whose name
-ends in `_test`, different from the development database. All users/readings in
+From `backend/`, run `npm test` (or `pnpm test`). Configure the server-side `.env`:
+
+```dotenv
+TEST_DATABASE_URL=postgresql://TEST_USER:TEST_PASSWORD@TEST_HOST:5432/TEST_DATABASE
+```
+
+This is a **backend setting**, not a Postman environment variable. Use the
+connection URL for your separately created test database. Supabase projects
+commonly use the database name `postgres`; no `_test` suffix is required.
+`npm test` always replaces the application's `DATABASE_URL` inside the test
+worker with `TEST_DATABASE_URL`; it never falls back to the normal app URL.
+There is no need to change Render's live `DATABASE_URL`.
+
+`TEST_DATABASE_URL` must point to a **dedicated test database**, different from
+the application database. All users/readings in
 that test database are deleted between tests and after the suite; never use a
 database containing data you need. Tests run sequentially, apply migrations,
 create their own fixtures, and close connections afterward. Missing test
 configuration fails explicitly rather than silently skipping tests.
+Before migration or cleanup, setup checks that the DataSource uses the supplied
+test URL and the connected database name matches it. Cleanup runs only after
+successful setup. A known-identical application URL is rejected, comparing
+host, port, database and username (the username distinguishes Supabase projects
+on a shared pooler). URL comparisons cannot detect every alternate endpoint or
+database alias: you are responsible for supplying the **separate test project's**
+URL, never another connection string for the live project.
+
+`npm run test:config` runs six small offline configuration checks without
+connecting to PostgreSQL. They also run at the start of `npm test`.
 
 Tests cover Argon2id storage, long and multibyte passwords without truncation,
 matching signup/login length limits, unsupported old hash rejection, both roles,

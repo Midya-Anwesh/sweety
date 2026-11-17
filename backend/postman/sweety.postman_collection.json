@@ -3,7 +3,7 @@
     "_postman_id": "5a19f2ad-2b8b-4a35-8410-c0b0b79bb712",
     "name": "Sweety — Blood Glucose Tracker API",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "# Sweety API\n\nImport the companion **Sweety — Render** environment and select it before sending requests.\n\nEvery URL uses the environment variable `base_url`, initially `https://sweety-qj4d.onrender.com` (without `/api` or a trailing slash).\n\n## Cold starts\n\nSet Postman Settings → General → Request timeout in ms to **180000**. The first health request may take a minute or more. This timeout is a client setting, not an environment variable a collection can enforce.\n\n## Run order and side effects\n\nRun folders 00 → 05, in order, for a complete demonstration. This creates a synthetic account and one reading, edits that reading, then deletes only the reading created by this collection. The account remains because no user-delete API exists. Do not use real patient data.\n\nThe health folder is read-only. Running the entire collection against Render WILL write to the Supabase-backed service. The collection does not auto-run on import.\n\nOn first registration, blank email/password variables are filled with fresh demo values locally. They are reused for login. To run again with a new account, clear `email` and `password`; sending registration again with the same email correctly returns 409.\n\nLogin saves `access_token` and `user_id` to the selected environment. Creation saves `reading_id` and a cleanup guard. A failed login/create clears stale state rather than reusing another account or reading.\n\n## API rules\n\nRoles: `patient` or `doctor`; both access only their own data. Passwords: Argon2id, 8–128 Unicode code points. JWT lifetime: server-configured, normally 7 days.\n\nSlots: `morning_fasting`, `after_breakfast`, `after_lunch`, `after_dinner`. Values: integer 40–600 mg/dl, maximum one reading per user/date/slot. Past dates are allowed; future dates are not.\n\nPATCH accepts only `{ \"value\": 125 }`. Date and slot are immutable. Reports: daily, month-to-date through the selected date, and the entire previous calendar month relative to that date.\n\n## Security\n\nNo API key is required. Protected routes inherit Bearer `{{access_token}}`. Keep credentials/tokens local; do not commit a populated environment export or share Postman Console output containing Authorization headers.\n\nSee the companion README for variables, sample responses, expected errors, rate limits, and a Newman command."
+    "description": "# Sweety API\n\nImport the companion **Sweety — Render** environment and select it before sending requests.\n\nThe environment contains only `BASE_URL` and `APP_TIMEZONE`. Every URL uses `BASE_URL`, initially `https://sweety-qj4d.onrender.com` (without `/api` or a trailing slash). Credentials, token, IDs and dates are collection variables, not environment settings.\n\n## Cold starts\n\nSet Postman Settings → General → Request timeout in ms to **180000**. The first health request may take a minute or more. This timeout is a client setting, not an environment variable a collection can enforce.\n\n## Run order and side effects\n\nRun folders 00 → 05, in order, for a complete demonstration. This creates a synthetic account and one reading, edits that reading, then deletes only the reading created by this collection. The account remains because no user-delete API exists. Do not use real patient data.\n\nThe health folder is read-only. Running the entire collection against Render WILL write to the Supabase-backed service. The collection does not auto-run on import.\n\nOn first registration, blank email/password variables are filled with fresh demo values locally. They are reused for login. To run again with a new account, clear `email` and `password`; sending registration again with the same email correctly returns 409.\n\nLogin saves `access_token` and `user_id` as collection variables. Creation saves `reading_id` and a cleanup guard. A failed login/create clears stale state rather than reusing another account or reading. Switching BASE_URL automatically clears collection credentials, token, IDs and dates before sending.\n\n## API rules\n\nRoles: `patient` or `doctor`; both access only their own data. Passwords: Argon2id, 8–128 Unicode code points. JWT lifetime: server-configured, normally 7 days.\n\nSlots: `morning_fasting`, `after_breakfast`, `after_lunch`, `after_dinner`. Values: integer 40–600 mg/dl, maximum one reading per user/date/slot. Past dates are allowed; future dates are not.\n\nPATCH accepts only `{ \"value\": 125 }`. Date and slot are immutable. Reports: daily, month-to-date through the selected date, and the entire previous calendar month relative to that date.\n\n## Security\n\nNo API key is required. Protected routes inherit Bearer `{{access_token}}`. Use synthetic demo credentials only for saved collection state. Collection variables may sync with Postman; never publish populated collections or share console Authorization headers.\n\nSee the companion README for variables, sample responses, expected errors, rate limits, and a Newman command."
   },
   "auth": {
     "type": "bearer",
@@ -21,16 +21,20 @@
       "script": {
         "type": "text/javascript",
         "exec": [
-          "const base = pm.environment.get(\"base_url\");",
+          "const base = pm.environment.get(\"BASE_URL\");",
           "if (!base || !/^https?:\\/\\/[^\\s/?#]+$/.test(base)) {",
-          "  pm.execution.skipRequest(); throw new Error(\"Select the Sweety environment. base_url must be an HTTP(S) origin, without /api or a trailing slash.\");",
+          "  pm.execution.skipRequest(); throw new Error(\"Select the Sweety environment. BASE_URL must be an HTTP(S) origin, without /api or a trailing slash.\");",
           "}",
-          "if (!pm.environment.get(\"reading_date\") || !pm.environment.get(\"selected_date\")) {",
-          "  const parts = new Intl.DateTimeFormat(\"en-US\", { timeZone: pm.environment.get(\"app_timezone\") || \"Asia/Kolkata\", year: \"numeric\", month: \"2-digit\", day: \"2-digit\" }).formatToParts(new Date());",
+          "if (pm.collectionVariables.get(\"active_base_url\") !== base) {",
+          "  [\"email\", \"password\", \"access_token\", \"user_id\", \"reading_id\", \"created_reading_id\", \"deleted_reading_id\", \"reading_date\", \"selected_date\"].forEach(key => pm.collectionVariables.set(key, \"\"));",
+          "  pm.collectionVariables.set(\"active_base_url\", base);",
+          "}",
+          "if (!pm.collectionVariables.get(\"reading_date\") || !pm.collectionVariables.get(\"selected_date\")) {",
+          "  const parts = new Intl.DateTimeFormat(\"en-US\", { timeZone: pm.environment.get(\"APP_TIMEZONE\") || \"Asia/Kolkata\", year: \"numeric\", month: \"2-digit\", day: \"2-digit\" }).formatToParts(new Date());",
           "  const part = type => parts.find(item => item.type === type).value;",
           "  const today = `${part(\"year\")}-${part(\"month\")}-${part(\"day\")}`;",
-          "  if (!pm.environment.get(\"reading_date\")) pm.environment.set(\"reading_date\", today);",
-          "  if (!pm.environment.get(\"selected_date\")) pm.environment.set(\"selected_date\", pm.environment.get(\"reading_date\"));",
+          "  if (!pm.collectionVariables.get(\"reading_date\")) pm.collectionVariables.set(\"reading_date\", today);",
+          "  if (!pm.collectionVariables.get(\"selected_date\")) pm.collectionVariables.set(\"selected_date\", pm.collectionVariables.get(\"reading_date\"));",
           "}"
         ]
       }
@@ -51,7 +55,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/api/healthz",
+            "url": "{{BASE_URL}}/api/healthz",
             "description": "Public health check. Expected 200 with the Sweety API service name. It does not create data or require a token. Retry this GET if the service is waking up; do not automatically retry writes.\n\nExamples are illustrative, not captured production data.",
             "auth": {
               "type": "noauth"
@@ -91,7 +95,7 @@
                     "value": "application/json"
                   }
                 ],
-                "url": "{{base_url}}/api/healthz",
+                "url": "{{BASE_URL}}/api/healthz",
                 "description": "Public health check. Expected 200 with the Sweety API service name. It does not create data or require a token. Retry this GET if the service is waking up; do not automatically retry writes.\n\nExamples are illustrative, not captured production data.",
                 "auth": {
                   "type": "noauth"
@@ -120,7 +124,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/api/auth/register",
+            "url": "{{BASE_URL}}/api/auth/register",
             "description": "Creates an account; does not log in automatically. Expected 201. Names/emails are trimmed; email is lowercased. Existing email → 409. Invalid fields/role/password → 400. Blank email/password are generated locally on first send. Clear both to create a fresh account on a repeat run. No accounts are ever deleted automatically.\n\nExamples are illustrative, not captured production data.",
             "auth": {
               "type": "noauth"
@@ -141,10 +145,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "// Blank existing values instead of removing variables, preserving sensitive-variable metadata.",
-                  "[\"access_token\", \"user_id\", \"reading_id\", \"created_reading_id\", \"deleted_reading_id\"].forEach(key => pm.environment.set(key, \"\"));",
-                  "if (!pm.environment.get(\"email\")) pm.environment.set(\"email\", \"sweety-postman-\" + pm.variables.replaceIn(\"{{$guid}}\") + \"@example.com\");",
-                  "if (!pm.environment.get(\"password\")) pm.environment.set(\"password\", \"Demo-\" + pm.variables.replaceIn(\"{{$guid}}\") + \"-aA1!\");"
+                  "[\"access_token\", \"user_id\", \"reading_id\", \"created_reading_id\", \"deleted_reading_id\"].forEach(key => pm.collectionVariables.set(key, \"\"));",
+                  "if (!pm.collectionVariables.get(\"email\")) pm.collectionVariables.set(\"email\", \"sweety-postman-\" + pm.variables.replaceIn(\"{{$guid}}\") + \"@example.com\");",
+                  "if (!pm.collectionVariables.get(\"password\")) pm.collectionVariables.set(\"password\", \"Demo-\" + pm.variables.replaceIn(\"{{$guid}}\") + \"-aA1!\");"
                 ]
               }
             },
@@ -154,9 +157,9 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
-                  "if (pm.response.code === 201) { const user = pm.response.json().user; pm.environment.set(\"user_id\", user.id); }",
+                  "if (pm.response.code === 201) { const user = pm.response.json().user; pm.collectionVariables.set(\"user_id\", user.id); }",
                   "const user = pm.response.json().user;",
-                  "pm.test(\"Registered selected role\", () => pm.expect(user.role).to.eql(pm.environment.get(\"role\")));",
+                  "pm.test(\"Registered selected role\", () => pm.expect(user.role).to.eql(pm.collectionVariables.get(\"role\")));",
                   "pm.test(\"No password hash exposed\", () => pm.expect(user).not.to.have.property(\"passwordHash\"));"
                 ]
               }
@@ -188,7 +191,7 @@
                     "value": "application/json"
                   }
                 ],
-                "url": "{{base_url}}/api/auth/register",
+                "url": "{{BASE_URL}}/api/auth/register",
                 "description": "Creates an account; does not log in automatically. Expected 201. Names/emails are trimmed; email is lowercased. Existing email → 409. Invalid fields/role/password → 400. Blank email/password are generated locally on first send. Clear both to create a fresh account on a repeat run. No accounts are ever deleted automatically.\n\nExamples are illustrative, not captured production data.",
                 "auth": {
                   "type": "noauth"
@@ -229,7 +232,7 @@
                     "value": "application/json"
                   }
                 ],
-                "url": "{{base_url}}/api/auth/register",
+                "url": "{{BASE_URL}}/api/auth/register",
                 "description": "Creates an account; does not log in automatically. Expected 201. Names/emails are trimmed; email is lowercased. Existing email → 409. Invalid fields/role/password → 400. Blank email/password are generated locally on first send. Clear both to create a fresh account on a repeat run. No accounts are ever deleted automatically.\n\nExamples are illustrative, not captured production data.",
                 "auth": {
                   "type": "noauth"
@@ -261,8 +264,8 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/api/auth/login",
-            "description": "Uses environment email/password. Expected 200. Saves access_token and user_id for all protected requests. Clears any previous token and reading IDs before login, preventing reuse after a failed login or account switch. Wrong password, unknown account, expired legacy hash format → 401. Invalid password length/email → 400. Old bcrypt accounts require recovery/recreation; they cannot be converted automatically.\n\nExamples are illustrative, not captured production data.",
+            "url": "{{BASE_URL}}/api/auth/login",
+            "description": "Uses collection email/password. Expected 200. Saves access_token and user_id for all protected requests. Clears any previous token and reading IDs before login, preventing reuse after a failed login or account switch. Wrong password, unknown account, unsupported legacy hash format → 401. Invalid password length/email → 400. Old bcrypt accounts require recovery/recreation; they cannot be converted automatically.\n\nExamples are illustrative, not captured production data.",
             "auth": {
               "type": "noauth"
             },
@@ -282,9 +285,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "[\"access_token\", \"user_id\", \"reading_id\", \"created_reading_id\", \"deleted_reading_id\"].forEach(key => pm.environment.set(key, \"\"));",
-                  "if (!pm.environment.get(\"email\")) { pm.execution.skipRequest(); throw new Error(\"Set email or complete the preceding setup request first.\"); }",
-                  "if (!pm.environment.get(\"password\")) { pm.execution.skipRequest(); throw new Error(\"Set password or complete the preceding setup request first.\"); }"
+                  "[\"access_token\", \"user_id\", \"reading_id\", \"created_reading_id\", \"deleted_reading_id\"].forEach(key => pm.collectionVariables.set(key, \"\"));",
+                  "if (!pm.collectionVariables.get(\"email\")) { pm.execution.skipRequest(); throw new Error(\"Set email or complete the preceding setup request first.\"); }",
+                  "if (!pm.collectionVariables.get(\"password\")) { pm.execution.skipRequest(); throw new Error(\"Set password or complete the preceding setup request first.\"); }"
                 ]
               }
             },
@@ -294,7 +297,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
-                  "if (pm.response.code === 200) { const data = pm.response.json(); pm.environment.set(\"access_token\", data.token); pm.environment.set(\"user_id\", data.user.id); }",
+                  "if (pm.response.code === 200) { const data = pm.response.json(); pm.collectionVariables.set(\"access_token\", data.token); pm.collectionVariables.set(\"user_id\", data.user.id); }",
                   "const data = pm.response.json();",
                   "pm.test(\"Bearer token returned\", () => { pm.expect(data.token).to.be.a(\"string\").and.not.empty; pm.expect(data.tokenType).to.eql(\"Bearer\"); pm.expect(data.expiresIn).to.be.a(\"string\"); });",
                   "pm.test(\"No password hash exposed\", () => pm.expect(data.user).not.to.have.property(\"passwordHash\"));"
@@ -328,8 +331,8 @@
                     "value": "application/json"
                   }
                 ],
-                "url": "{{base_url}}/api/auth/login",
-                "description": "Uses environment email/password. Expected 200. Saves access_token and user_id for all protected requests. Clears any previous token and reading IDs before login, preventing reuse after a failed login or account switch. Wrong password, unknown account, expired legacy hash format → 401. Invalid password length/email → 400. Old bcrypt accounts require recovery/recreation; they cannot be converted automatically.\n\nExamples are illustrative, not captured production data.",
+                "url": "{{BASE_URL}}/api/auth/login",
+                "description": "Uses collection email/password. Expected 200. Saves access_token and user_id for all protected requests. Clears any previous token and reading IDs before login, preventing reuse after a failed login or account switch. Wrong password, unknown account, unsupported legacy hash format → 401. Invalid password length/email → 400. Old bcrypt accounts require recovery/recreation; they cannot be converted automatically.\n\nExamples are illustrative, not captured production data.",
                 "auth": {
                   "type": "noauth"
                 },
@@ -369,8 +372,8 @@
                     "value": "application/json"
                   }
                 ],
-                "url": "{{base_url}}/api/auth/login",
-                "description": "Uses environment email/password. Expected 200. Saves access_token and user_id for all protected requests. Clears any previous token and reading IDs before login, preventing reuse after a failed login or account switch. Wrong password, unknown account, expired legacy hash format → 401. Invalid password length/email → 400. Old bcrypt accounts require recovery/recreation; they cannot be converted automatically.\n\nExamples are illustrative, not captured production data.",
+                "url": "{{BASE_URL}}/api/auth/login",
+                "description": "Uses collection email/password. Expected 200. Saves access_token and user_id for all protected requests. Clears any previous token and reading IDs before login, preventing reuse after a failed login or account switch. Wrong password, unknown account, unsupported legacy hash format → 401. Invalid password length/email → 400. Old bcrypt accounts require recovery/recreation; they cannot be converted automatically.\n\nExamples are illustrative, not captured production data.",
                 "auth": {
                   "type": "noauth"
                 },
@@ -397,7 +400,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/api/auth/me",
+            "url": "{{BASE_URL}}/api/auth/me",
             "description": "Returns the authenticated public user. Missing, forged or expired Bearer token → 401. No password hash is returned.\n\nExamples are illustrative, not captured production data."
           },
           "event": [
@@ -406,7 +409,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (!pm.environment.get(\"access_token\")) { pm.execution.skipRequest(); throw new Error(\"Set access_token or complete the preceding setup request first.\"); }"
+                  "if (!pm.collectionVariables.get(\"access_token\")) { pm.execution.skipRequest(); throw new Error(\"Set access_token or complete the preceding setup request first.\"); }"
                 ]
               }
             },
@@ -416,7 +419,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
-                  "pm.test(\"Correct current user\", () => pm.expect(pm.response.json().user.id).to.eql(pm.environment.get(\"user_id\")));",
+                  "pm.test(\"Correct current user\", () => pm.expect(pm.response.json().user.id).to.eql(pm.collectionVariables.get(\"user_id\")));",
                   "pm.test(\"No password hash exposed\", () => pm.expect(pm.response.json().user).not.to.have.property(\"passwordHash\"));"
                 ]
               }
@@ -444,7 +447,7 @@
                     "value": "application/json"
                   }
                 ],
-                "url": "{{base_url}}/api/auth/me",
+                "url": "{{BASE_URL}}/api/auth/me",
                 "description": "Returns the authenticated public user. Missing, forged or expired Bearer token → 401. No password hash is returned.\n\nExamples are illustrative, not captured production data."
               }
             }
@@ -454,14 +457,14 @@
     },
     {
       "name": "02 — Reading lifecycle",
-      "description": "Requires login. Create saves the ID used by subsequent requests. Dates default once to today in app_timezone. Do not use a pre-existing patient account for automated demonstrations.",
+      "description": "Requires login. Create saves the ID used by subsequent requests. Dates default once to today in APP_TIMEZONE. Do not use a pre-existing patient account for automated demonstrations.",
       "event": [
         {
           "listen": "prerequest",
           "script": {
             "type": "text/javascript",
             "exec": [
-              "if (!pm.environment.get(\"access_token\")) { pm.execution.skipRequest(); throw new Error(\"Set access_token or complete the preceding setup request first.\"); }"
+              "if (!pm.collectionVariables.get(\"access_token\")) { pm.execution.skipRequest(); throw new Error(\"Set access_token or complete the preceding setup request first.\"); }"
             ]
           }
         }
@@ -481,7 +484,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/api/readings",
+            "url": "{{BASE_URL}}/api/readings",
             "description": "Creates one reading for reading_date/reading_slot and value 100. Expected 201; duplicate user/date/slot → 409. The four slots and unique constraint enforce max four per day. Dates may be historical, but not future. Clears old reading state before attempting creation. Never supply userId: ownership comes from JWT.\n\nExamples are illustrative, not captured production data.",
             "body": {
               "mode": "raw",
@@ -499,7 +502,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "[\"reading_id\", \"created_reading_id\", \"deleted_reading_id\"].forEach(key => pm.environment.unset(key));"
+                  "[\"reading_id\", \"created_reading_id\", \"deleted_reading_id\"].forEach(key => pm.collectionVariables.unset(key));"
                 ]
               }
             },
@@ -509,8 +512,8 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
-                  "if (pm.response.code === 201) { const reading = pm.response.json().reading; pm.environment.set(\"reading_id\", reading.id); pm.environment.set(\"created_reading_id\", reading.id); }",
-                  "pm.test(\"Reading belongs to current user\", () => pm.expect(pm.response.json().reading.userId).to.eql(pm.environment.get(\"user_id\")));",
+                  "if (pm.response.code === 201) { const reading = pm.response.json().reading; pm.collectionVariables.set(\"reading_id\", reading.id); pm.collectionVariables.set(\"created_reading_id\", reading.id); }",
+                  "pm.test(\"Reading belongs to current user\", () => pm.expect(pm.response.json().reading.userId).to.eql(pm.collectionVariables.get(\"user_id\")));",
                   "pm.test(\"Created value\", () => pm.expect(pm.response.json().reading.value).to.eql(100));"
                 ]
               }
@@ -542,7 +545,7 @@
                     "value": "application/json"
                   }
                 ],
-                "url": "{{base_url}}/api/readings",
+                "url": "{{BASE_URL}}/api/readings",
                 "description": "Creates one reading for reading_date/reading_slot and value 100. Expected 201; duplicate user/date/slot → 409. The four slots and unique constraint enforce max four per day. Dates may be historical, but not future. Clears old reading state before attempting creation. Never supply userId: ownership comes from JWT.\n\nExamples are illustrative, not captured production data.",
                 "body": {
                   "mode": "raw",
@@ -580,7 +583,7 @@
                     "value": "application/json"
                   }
                 ],
-                "url": "{{base_url}}/api/readings",
+                "url": "{{BASE_URL}}/api/readings",
                 "description": "Creates one reading for reading_date/reading_slot and value 100. Expected 201; duplicate user/date/slot → 409. The four slots and unique constraint enforce max four per day. Dates may be historical, but not future. Clears old reading state before attempting creation. Never supply userId: ownership comes from JWT.\n\nExamples are illustrative, not captured production data.",
                 "body": {
                   "mode": "raw",
@@ -605,7 +608,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/api/readings/{{reading_id}}",
+            "url": "{{BASE_URL}}/api/readings/{{reading_id}}",
             "description": "Retrieves only an owned reading. Missing or another user’s ID → 404; malformed UUID → 400.\n\nExamples are illustrative, not captured production data."
           },
           "event": [
@@ -614,7 +617,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (!pm.environment.get(\"reading_id\")) { pm.execution.skipRequest(); throw new Error(\"Set reading_id or complete the preceding setup request first.\"); }"
+                  "if (!pm.collectionVariables.get(\"reading_id\")) { pm.execution.skipRequest(); throw new Error(\"Set reading_id or complete the preceding setup request first.\"); }"
                 ]
               }
             },
@@ -624,7 +627,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
-                  "pm.test(\"Correct reading\", () => pm.expect(pm.response.json().reading.id).to.eql(pm.environment.get(\"reading_id\")));"
+                  "pm.test(\"Correct reading\", () => pm.expect(pm.response.json().reading.id).to.eql(pm.collectionVariables.get(\"reading_id\")));"
                 ]
               }
             }
@@ -651,7 +654,7 @@
                     "value": "application/json"
                   }
                 ],
-                "url": "{{base_url}}/api/readings/{{reading_id}}",
+                "url": "{{BASE_URL}}/api/readings/{{reading_id}}",
                 "description": "Retrieves only an owned reading. Missing or another user’s ID → 404; malformed UUID → 400.\n\nExamples are illustrative, not captured production data."
               }
             },
@@ -676,7 +679,7 @@
                     "value": "application/json"
                   }
                 ],
-                "url": "{{base_url}}/api/readings/{{reading_id}}",
+                "url": "{{BASE_URL}}/api/readings/{{reading_id}}",
                 "description": "Retrieves only an owned reading. Missing or another user’s ID → 404; malformed UUID → 400.\n\nExamples are illustrative, not captured production data."
               }
             }
@@ -692,7 +695,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/api/readings",
+            "url": "{{BASE_URL}}/api/readings",
             "description": "Returns { readings: [] } when empty. Sorted by date descending and slot order ascending. No pagination is implemented.\n\nExamples are illustrative, not captured production data."
           },
           "event": [
@@ -702,7 +705,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
-                  "pm.test(\"Own readings only\", () => { const rows = pm.response.json().readings; pm.expect(rows).to.be.an(\"array\"); rows.forEach(row => pm.expect(row.userId).to.eql(pm.environment.get(\"user_id\"))); });"
+                  "pm.test(\"Own readings only\", () => { const rows = pm.response.json().readings; pm.expect(rows).to.be.an(\"array\"); rows.forEach(row => pm.expect(row.userId).to.eql(pm.collectionVariables.get(\"user_id\"))); });"
                 ]
               }
             }
@@ -729,7 +732,7 @@
                     "value": "application/json"
                   }
                 ],
-                "url": "{{base_url}}/api/readings",
+                "url": "{{BASE_URL}}/api/readings",
                 "description": "Returns { readings: [] } when empty. Sorted by date descending and slot order ascending. No pagination is implemented.\n\nExamples are illustrative, not captured production data."
               }
             },
@@ -754,7 +757,7 @@
                     "value": "application/json"
                   }
                 ],
-                "url": "{{base_url}}/api/readings",
+                "url": "{{BASE_URL}}/api/readings",
                 "description": "Returns { readings: [] } when empty. Sorted by date descending and slot order ascending. No pagination is implemented.\n\nExamples are illustrative, not captured production data."
               }
             }
@@ -770,7 +773,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/api/readings?date={{reading_date}}",
+            "url": "{{BASE_URL}}/api/readings?date={{reading_date}}",
             "description": "Same list filtered by reading_date (YYYY-MM-DD). Invalid/future date → 400. Does not change selected_date used for reports.\n\nExamples are illustrative, not captured production data."
           },
           "event": [
@@ -780,7 +783,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
-                  "pm.test(\"Date filter\", () => { const rows = pm.response.json().readings; pm.expect(rows).to.be.an(\"array\"); rows.forEach(row => pm.expect(row.date).to.eql(pm.environment.get(\"reading_date\"))); });"
+                  "pm.test(\"Date filter\", () => { const rows = pm.response.json().readings; pm.expect(rows).to.be.an(\"array\"); rows.forEach(row => pm.expect(row.date).to.eql(pm.collectionVariables.get(\"reading_date\"))); });"
                 ]
               }
             }
@@ -807,7 +810,7 @@
                     "value": "application/json"
                   }
                 ],
-                "url": "{{base_url}}/api/readings?date={{reading_date}}",
+                "url": "{{BASE_URL}}/api/readings?date={{reading_date}}",
                 "description": "Same list filtered by reading_date (YYYY-MM-DD). Invalid/future date → 400. Does not change selected_date used for reports.\n\nExamples are illustrative, not captured production data."
               }
             }
@@ -827,7 +830,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/api/readings/{{reading_id}}",
+            "url": "{{BASE_URL}}/api/readings/{{reading_id}}",
             "description": "Changes value to 125 mg/dl. value is required, integer 40–600. Empty body, null/string/decimal/out-of-range value, date, slot or other unknown fields → 400. Correcting date/slot requires delete and recreate.\n\nExamples are illustrative, not captured production data.",
             "body": {
               "mode": "raw",
@@ -845,7 +848,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (!pm.environment.get(\"reading_id\")) { pm.execution.skipRequest(); throw new Error(\"Set reading_id or complete the preceding setup request first.\"); }"
+                  "if (!pm.collectionVariables.get(\"reading_id\")) { pm.execution.skipRequest(); throw new Error(\"Set reading_id or complete the preceding setup request first.\"); }"
                 ]
               }
             },
@@ -886,7 +889,7 @@
                     "value": "application/json"
                   }
                 ],
-                "url": "{{base_url}}/api/readings/{{reading_id}}",
+                "url": "{{BASE_URL}}/api/readings/{{reading_id}}",
                 "description": "Changes value to 125 mg/dl. value is required, integer 40–600. Empty body, null/string/decimal/out-of-range value, date, slot or other unknown fields → 400. Correcting date/slot requires delete and recreate.\n\nExamples are illustrative, not captured production data.",
                 "body": {
                   "mode": "raw",
@@ -912,7 +915,7 @@
           "script": {
             "type": "text/javascript",
             "exec": [
-              "if (!pm.environment.get(\"access_token\")) { pm.execution.skipRequest(); throw new Error(\"Set access_token or complete the preceding setup request first.\"); }"
+              "if (!pm.collectionVariables.get(\"access_token\")) { pm.execution.skipRequest(); throw new Error(\"Set access_token or complete the preceding setup request first.\"); }"
             ]
           }
         }
@@ -928,7 +931,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/api/reports/daily?date={{selected_date}}",
+            "url": "{{BASE_URL}}/api/reports/daily?date={{selected_date}}",
             "description": "For the selected date only. Includes reading rows in slot order plus highest, lowest, average, count. Empty: count=0, null statistics, friendly message, readings=[].\n\nExamples are illustrative, not captured production data."
           },
           "event": [
@@ -939,7 +942,7 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
                   "const report = pm.response.json();",
-                  "pm.test(\"Report structure\", () => { pm.expect(report.count).to.be.a(\"number\"); pm.expect(report.selectedDate).to.eql(pm.environment.get(\"selected_date\")); });",
+                  "pm.test(\"Report structure\", () => { pm.expect(report.count).to.be.a(\"number\"); pm.expect(report.selectedDate).to.eql(pm.collectionVariables.get(\"selected_date\")); });",
                   "pm.test(\"Statistics or friendly empty state\", () => {",
                   "  if (report.count === 0) {",
                   "    [\"highest\", \"lowest\", \"average\"].forEach(key => pm.expect(report[key]).to.eql(null));",
@@ -977,7 +980,7 @@
                     "value": "application/json"
                   }
                 ],
-                "url": "{{base_url}}/api/reports/daily?date={{selected_date}}",
+                "url": "{{BASE_URL}}/api/reports/daily?date={{selected_date}}",
                 "description": "For the selected date only. Includes reading rows in slot order plus highest, lowest, average, count. Empty: count=0, null statistics, friendly message, readings=[].\n\nExamples are illustrative, not captured production data."
               }
             },
@@ -1002,7 +1005,7 @@
                     "value": "application/json"
                   }
                 ],
-                "url": "{{base_url}}/api/reports/daily?date={{selected_date}}",
+                "url": "{{BASE_URL}}/api/reports/daily?date={{selected_date}}",
                 "description": "For the selected date only. Includes reading rows in slot order plus highest, lowest, average, count. Empty: count=0, null statistics, friendly message, readings=[].\n\nExamples are illustrative, not captured production data."
               }
             }
@@ -1018,7 +1021,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/api/reports/month-to-date?date={{selected_date}}",
+            "url": "{{BASE_URL}}/api/reports/month-to-date?date={{selected_date}}",
             "description": "From the first day of the selected date’s month through selected_date, inclusive. Not necessarily the current real-world month. Does not include a readings array.\n\nExamples are illustrative, not captured production data."
           },
           "event": [
@@ -1029,7 +1032,7 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
                   "const report = pm.response.json();",
-                  "pm.test(\"Report structure\", () => { pm.expect(report.count).to.be.a(\"number\"); pm.expect(report.selectedDate).to.eql(pm.environment.get(\"selected_date\")); });",
+                  "pm.test(\"Report structure\", () => { pm.expect(report.count).to.be.a(\"number\"); pm.expect(report.selectedDate).to.eql(pm.collectionVariables.get(\"selected_date\")); });",
                   "pm.test(\"Statistics or friendly empty state\", () => {",
                   "  if (report.count === 0) {",
                   "    [\"highest\", \"lowest\", \"average\"].forEach(key => pm.expect(report[key]).to.eql(null));",
@@ -1067,7 +1070,7 @@
                     "value": "application/json"
                   }
                 ],
-                "url": "{{base_url}}/api/reports/month-to-date?date={{selected_date}}",
+                "url": "{{BASE_URL}}/api/reports/month-to-date?date={{selected_date}}",
                 "description": "From the first day of the selected date’s month through selected_date, inclusive. Not necessarily the current real-world month. Does not include a readings array.\n\nExamples are illustrative, not captured production data."
               }
             }
@@ -1083,7 +1086,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/api/reports/monthly?date={{selected_date}}",
+            "url": "{{BASE_URL}}/api/reports/monthly?date={{selected_date}}",
             "description": "The full calendar month before selected_date’s month—not a rolling 30 days. For 2026-11-17, range is 2026-10-01 through 2026-10-31. Handles leap years and year boundaries. Does not include reading rows.\n\nExamples are illustrative, not captured production data."
           },
           "event": [
@@ -1094,7 +1097,7 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
                   "const report = pm.response.json();",
-                  "pm.test(\"Report structure\", () => { pm.expect(report.count).to.be.a(\"number\"); pm.expect(report.selectedDate).to.eql(pm.environment.get(\"selected_date\")); });",
+                  "pm.test(\"Report structure\", () => { pm.expect(report.count).to.be.a(\"number\"); pm.expect(report.selectedDate).to.eql(pm.collectionVariables.get(\"selected_date\")); });",
                   "pm.test(\"Statistics or friendly empty state\", () => {",
                   "  if (report.count === 0) {",
                   "    [\"highest\", \"lowest\", \"average\"].forEach(key => pm.expect(report[key]).to.eql(null));",
@@ -1132,7 +1135,7 @@
                     "value": "application/json"
                   }
                 ],
-                "url": "{{base_url}}/api/reports/monthly?date={{selected_date}}",
+                "url": "{{BASE_URL}}/api/reports/monthly?date={{selected_date}}",
                 "description": "The full calendar month before selected_date’s month—not a rolling 30 days. For 2026-11-17, range is 2026-10-01 through 2026-10-31. Handles leap years and year boundaries. Does not include reading rows.\n\nExamples are illustrative, not captured production data."
               }
             }
@@ -1154,7 +1157,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/api/readings",
+            "url": "{{BASE_URL}}/api/readings",
             "description": "Intentionally sends no Bearer token. Expected 401.\n\nExamples are illustrative, not captured production data.",
             "auth": {
               "type": "noauth"
@@ -1194,7 +1197,7 @@
                     "value": "application/json"
                   }
                 ],
-                "url": "{{base_url}}/api/readings",
+                "url": "{{BASE_URL}}/api/readings",
                 "description": "Intentionally sends no Bearer token. Expected 401.\n\nExamples are illustrative, not captured production data.",
                 "auth": {
                   "type": "noauth"
@@ -1217,7 +1220,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/api/readings",
+            "url": "{{BASE_URL}}/api/readings",
             "description": "Run after creating the reading, before deleting it. Reuses exactly the same date and slot. Expected 409; does not overwrite the original value.\n\nExamples are illustrative, not captured production data.",
             "body": {
               "mode": "raw",
@@ -1235,8 +1238,8 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (!pm.environment.get(\"access_token\")) { pm.execution.skipRequest(); throw new Error(\"Set access_token or complete the preceding setup request first.\"); }",
-                  "if (!pm.environment.get(\"reading_id\")) { pm.execution.skipRequest(); throw new Error(\"Set reading_id or complete the preceding setup request first.\"); }"
+                  "if (!pm.collectionVariables.get(\"access_token\")) { pm.execution.skipRequest(); throw new Error(\"Set access_token or complete the preceding setup request first.\"); }",
+                  "if (!pm.collectionVariables.get(\"reading_id\")) { pm.execution.skipRequest(); throw new Error(\"Set reading_id or complete the preceding setup request first.\"); }"
                 ]
               }
             },
@@ -1266,7 +1269,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/api/readings",
+            "url": "{{BASE_URL}}/api/readings",
             "description": "601 is outside 40–600 and must be rejected before database insertion. Expected 400.\n\nExamples are illustrative, not captured production data.",
             "body": {
               "mode": "raw",
@@ -1284,7 +1287,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (!pm.environment.get(\"access_token\")) { pm.execution.skipRequest(); throw new Error(\"Set access_token or complete the preceding setup request first.\"); }"
+                  "if (!pm.collectionVariables.get(\"access_token\")) { pm.execution.skipRequest(); throw new Error(\"Set access_token or complete the preceding setup request first.\"); }"
                 ]
               }
             },
@@ -1314,7 +1317,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/api/readings/{{reading_id}}",
+            "url": "{{BASE_URL}}/api/readings/{{reading_id}}",
             "description": "Even with a valid value, a supplied date is forbidden. Expected 400. No reading fields should change.\n\nExamples are illustrative, not captured production data.",
             "body": {
               "mode": "raw",
@@ -1332,8 +1335,8 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (!pm.environment.get(\"access_token\")) { pm.execution.skipRequest(); throw new Error(\"Set access_token or complete the preceding setup request first.\"); }",
-                  "if (!pm.environment.get(\"reading_id\")) { pm.execution.skipRequest(); throw new Error(\"Set reading_id or complete the preceding setup request first.\"); }"
+                  "if (!pm.collectionVariables.get(\"access_token\")) { pm.execution.skipRequest(); throw new Error(\"Set access_token or complete the preceding setup request first.\"); }",
+                  "if (!pm.collectionVariables.get(\"reading_id\")) { pm.execution.skipRequest(); throw new Error(\"Set reading_id or complete the preceding setup request first.\"); }"
                 ]
               }
             },
@@ -1359,7 +1362,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/api/reports/daily?date=not-a-date",
+            "url": "{{BASE_URL}}/api/reports/daily?date=not-a-date",
             "description": "Calendar validation rejects this query. Missing or future dates are also rejected. Expected 400.\n\nExamples are illustrative, not captured production data."
           },
           "event": [
@@ -1368,7 +1371,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (!pm.environment.get(\"access_token\")) { pm.execution.skipRequest(); throw new Error(\"Set access_token or complete the preceding setup request first.\"); }"
+                  "if (!pm.collectionVariables.get(\"access_token\")) { pm.execution.skipRequest(); throw new Error(\"Set access_token or complete the preceding setup request first.\"); }"
                 ]
               }
             },
@@ -1395,7 +1398,7 @@
           "script": {
             "type": "text/javascript",
             "exec": [
-              "if (!pm.environment.get(\"access_token\")) { pm.execution.skipRequest(); throw new Error(\"Set access_token or complete the preceding setup request first.\"); }"
+              "if (!pm.collectionVariables.get(\"access_token\")) { pm.execution.skipRequest(); throw new Error(\"Set access_token or complete the preceding setup request first.\"); }"
             ]
           }
         }
@@ -1411,7 +1414,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/api/readings/{{reading_id}}",
+            "url": "{{BASE_URL}}/api/readings/{{reading_id}}",
             "description": "Expected 204 and an empty response body. A guard refuses to send if reading_id does not match created_reading_id. Only execute against a disposable collection-created reading.\n\nExamples are illustrative, not captured production data."
           },
           "event": [
@@ -1420,8 +1423,8 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (!pm.environment.get(\"reading_id\")) { pm.execution.skipRequest(); throw new Error(\"Set reading_id or complete the preceding setup request first.\"); }",
-                  "if (pm.environment.get(\"reading_id\") !== pm.environment.get(\"created_reading_id\")) { pm.execution.skipRequest(); throw new Error(\"Refusing cleanup: this reading was not saved by the Create request.\"); }"
+                  "if (!pm.collectionVariables.get(\"reading_id\")) { pm.execution.skipRequest(); throw new Error(\"Set reading_id or complete the preceding setup request first.\"); }",
+                  "if (pm.collectionVariables.get(\"reading_id\") !== pm.collectionVariables.get(\"created_reading_id\")) { pm.execution.skipRequest(); throw new Error(\"Refusing cleanup: this reading was not saved by the Create request.\"); }"
                 ]
               }
             },
@@ -1432,7 +1435,7 @@
                 "exec": [
                   "pm.test(\"HTTP 204\", () => pm.response.to.have.status(204));",
                   "pm.test(\"No response body\", () => pm.expect(pm.response.text()).to.eql(\"\"));",
-                  "if (pm.response.code === 204) { pm.environment.set(\"deleted_reading_id\", pm.environment.get(\"reading_id\")); pm.environment.unset(\"reading_id\"); pm.environment.unset(\"created_reading_id\"); }"
+                  "if (pm.response.code === 204) { pm.collectionVariables.set(\"deleted_reading_id\", pm.collectionVariables.get(\"reading_id\")); pm.collectionVariables.unset(\"reading_id\"); pm.collectionVariables.unset(\"created_reading_id\"); }"
                 ]
               }
             }
@@ -1454,7 +1457,7 @@
                     "value": "application/json"
                   }
                 ],
-                "url": "{{base_url}}/api/readings/{{reading_id}}",
+                "url": "{{BASE_URL}}/api/readings/{{reading_id}}",
                 "description": "Expected 204 and an empty response body. A guard refuses to send if reading_id does not match created_reading_id. Only execute against a disposable collection-created reading.\n\nExamples are illustrative, not captured production data."
               }
             }
@@ -1470,7 +1473,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/api/readings/{{deleted_reading_id}}",
+            "url": "{{BASE_URL}}/api/readings/{{deleted_reading_id}}",
             "description": "Expected 404 after successful deletion. Keeps deleted_reading_id solely so this confirmation can be repeated.\n\nExamples are illustrative, not captured production data."
           },
           "event": [
@@ -1479,7 +1482,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (!pm.environment.get(\"deleted_reading_id\")) { pm.execution.skipRequest(); throw new Error(\"Set deleted_reading_id or complete the preceding setup request first.\"); }"
+                  "if (!pm.collectionVariables.get(\"deleted_reading_id\")) { pm.execution.skipRequest(); throw new Error(\"Set deleted_reading_id or complete the preceding setup request first.\"); }"
                 ]
               }
             },
@@ -1516,13 +1519,80 @@
                     "value": "application/json"
                   }
                 ],
-                "url": "{{base_url}}/api/readings/{{deleted_reading_id}}",
+                "url": "{{BASE_URL}}/api/readings/{{deleted_reading_id}}",
                 "description": "Expected 404 after successful deletion. Keeps deleted_reading_id solely so this confirmation can be repeated.\n\nExamples are illustrative, not captured production data."
               }
             }
           ]
         }
       ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "name",
+      "value": "Postman Demo Patient",
+      "type": "string"
+    },
+    {
+      "key": "role",
+      "value": "patient",
+      "type": "string"
+    },
+    {
+      "key": "email",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "password",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "user_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "reading_date",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "reading_slot",
+      "value": "morning_fasting",
+      "type": "string"
+    },
+    {
+      "key": "reading_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "selected_date",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "created_reading_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "deleted_reading_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "active_base_url",
+      "value": "",
+      "type": "string"
     }
   ]
 }
