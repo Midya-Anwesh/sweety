@@ -1,0 +1,1528 @@
+{
+  "info": {
+    "_postman_id": "5a19f2ad-2b8b-4a35-8410-c0b0b79bb712",
+    "name": "Sweety — Blood Glucose Tracker API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "# Sweety API\n\nImport the companion **Sweety — Render** environment and select it before sending requests.\n\nEvery URL uses the environment variable `base_url`, initially `https://sweety-qj4d.onrender.com` (without `/api` or a trailing slash).\n\n## Cold starts\n\nSet Postman Settings → General → Request timeout in ms to **180000**. The first health request may take a minute or more. This timeout is a client setting, not an environment variable a collection can enforce.\n\n## Run order and side effects\n\nRun folders 00 → 05, in order, for a complete demonstration. This creates a synthetic account and one reading, edits that reading, then deletes only the reading created by this collection. The account remains because no user-delete API exists. Do not use real patient data.\n\nThe health folder is read-only. Running the entire collection against Render WILL write to the Supabase-backed service. The collection does not auto-run on import.\n\nOn first registration, blank email/password variables are filled with fresh demo values locally. They are reused for login. To run again with a new account, clear `email` and `password`; sending registration again with the same email correctly returns 409.\n\nLogin saves `access_token` and `user_id` to the selected environment. Creation saves `reading_id` and a cleanup guard. A failed login/create clears stale state rather than reusing another account or reading.\n\n## API rules\n\nRoles: `patient` or `doctor`; both access only their own data. Passwords: Argon2id, 8–128 Unicode code points. JWT lifetime: server-configured, normally 7 days.\n\nSlots: `morning_fasting`, `after_breakfast`, `after_lunch`, `after_dinner`. Values: integer 40–600 mg/dl, maximum one reading per user/date/slot. Past dates are allowed; future dates are not.\n\nPATCH accepts only `{ \"value\": 125 }`. Date and slot are immutable. Reports: daily, month-to-date through the selected date, and the entire previous calendar month relative to that date.\n\n## Security\n\nNo API key is required. Protected routes inherit Bearer `{{access_token}}`. Keep credentials/tokens local; do not commit a populated environment export or share Postman Console output containing Authorization headers.\n\nSee the companion README for variables, sample responses, expected errors, rate limits, and a Newman command."
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{access_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "const base = pm.environment.get(\"base_url\");",
+          "if (!base || !/^https?:\\/\\/[^\\s/?#]+$/.test(base)) {",
+          "  pm.execution.skipRequest(); throw new Error(\"Select the Sweety environment. base_url must be an HTTP(S) origin, without /api or a trailing slash.\");",
+          "}",
+          "if (!pm.environment.get(\"reading_date\") || !pm.environment.get(\"selected_date\")) {",
+          "  const parts = new Intl.DateTimeFormat(\"en-US\", { timeZone: pm.environment.get(\"app_timezone\") || \"Asia/Kolkata\", year: \"numeric\", month: \"2-digit\", day: \"2-digit\" }).formatToParts(new Date());",
+          "  const part = type => parts.find(item => item.type === type).value;",
+          "  const today = `${part(\"year\")}-${part(\"month\")}-${part(\"day\")}`;",
+          "  if (!pm.environment.get(\"reading_date\")) pm.environment.set(\"reading_date\", today);",
+          "  if (!pm.environment.get(\"selected_date\")) pm.environment.set(\"selected_date\", pm.environment.get(\"reading_date\"));",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "00 — Health and cold-start warm-up",
+      "description": "Read-only. Run this first and allow up to 180 seconds. A successful health response confirms the HTTP service is running; it is not a standalone database connectivity probe.",
+      "item": [
+        {
+          "name": "Health / warm up Render",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/healthz",
+            "description": "Public health check. Expected 200 with the Sweety API service name. It does not create data or require a token. Retry this GET if the service is waking up; do not automatically retry writes.\n\nExamples are illustrative, not captured production data.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Healthy service\", () => pm.expect(pm.response.json()).to.deep.equal({ status: \"ok\", service: \"Sweety API\" }));"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "Healthy service",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "_postman_previewlanguage": "json",
+              "cookie": [],
+              "body": "{\n  \"status\": \"ok\",\n  \"service\": \"Sweety API\"\n}",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{base_url}}/api/healthz",
+                "description": "Public health check. Expected 200 with the Sweety API service name. It does not create data or require a token. Retry this GET if the service is waking up; do not automatically retry writes.\n\nExamples are illustrative, not captured production data.",
+                "auth": {
+                  "type": "noauth"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "01 — Register, log in, and inspect user",
+      "description": "Registration creates a real synthetic account in the selected service. Login saves the token automatically. Set role to doctor to try that role; it does not enable cross-user access.",
+      "item": [
+        {
+          "name": "Register demo user",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/auth/register",
+            "description": "Creates an account; does not log in automatically. Expected 201. Names/emails are trimmed; email is lowercased. Existing email → 409. Invalid fields/role/password → 400. Blank email/password are generated locally on first send. Clear both to create a fresh account on a repeat run. No accounts are ever deleted automatically.\n\nExamples are illustrative, not captured production data.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{name}}\",\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\",\n  \"role\": \"{{role}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Blank existing values instead of removing variables, preserving sensitive-variable metadata.",
+                  "[\"access_token\", \"user_id\", \"reading_id\", \"created_reading_id\", \"deleted_reading_id\"].forEach(key => pm.environment.set(key, \"\"));",
+                  "if (!pm.environment.get(\"email\")) pm.environment.set(\"email\", \"sweety-postman-\" + pm.variables.replaceIn(\"{{$guid}}\") + \"@example.com\");",
+                  "if (!pm.environment.get(\"password\")) pm.environment.set(\"password\", \"Demo-\" + pm.variables.replaceIn(\"{{$guid}}\") + \"-aA1!\");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code === 201) { const user = pm.response.json().user; pm.environment.set(\"user_id\", user.id); }",
+                  "const user = pm.response.json().user;",
+                  "pm.test(\"Registered selected role\", () => pm.expect(user.role).to.eql(pm.environment.get(\"role\")));",
+                  "pm.test(\"No password hash exposed\", () => pm.expect(user).not.to.have.property(\"passwordHash\"));"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "Registered patient",
+              "status": "Created",
+              "code": 201,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "_postman_previewlanguage": "json",
+              "cookie": [],
+              "body": "{\n  \"user\": {\n    \"id\": \"10000000-0000-4000-8000-000000000001\",\n    \"name\": \"Postman Demo Patient\",\n    \"email\": \"postman-demo@example.com\",\n    \"role\": \"patient\",\n    \"createdAt\": \"2026-11-17T09:00:00.000Z\",\n    \"updatedAt\": \"2026-11-17T09:00:00.000Z\"\n  }\n}",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{base_url}}/api/auth/register",
+                "description": "Creates an account; does not log in automatically. Expected 201. Names/emails are trimmed; email is lowercased. Existing email → 409. Invalid fields/role/password → 400. Blank email/password are generated locally on first send. Clear both to create a fresh account on a repeat run. No accounts are ever deleted automatically.\n\nExamples are illustrative, not captured production data.",
+                "auth": {
+                  "type": "noauth"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"{{name}}\",\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\",\n  \"role\": \"{{role}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Duplicate email",
+              "status": "Conflict",
+              "code": 409,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "_postman_previewlanguage": "json",
+              "cookie": [],
+              "body": "{\n  \"message\": \"An account with this email already exists.\"\n}",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{base_url}}/api/auth/register",
+                "description": "Creates an account; does not log in automatically. Expected 201. Names/emails are trimmed; email is lowercased. Existing email → 409. Invalid fields/role/password → 400. Blank email/password are generated locally on first send. Clear both to create a fresh account on a repeat run. No accounts are ever deleted automatically.\n\nExamples are illustrative, not captured production data.",
+                "auth": {
+                  "type": "noauth"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"{{name}}\",\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\",\n  \"role\": \"{{role}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Log in and save access token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/auth/login",
+            "description": "Uses environment email/password. Expected 200. Saves access_token and user_id for all protected requests. Clears any previous token and reading IDs before login, preventing reuse after a failed login or account switch. Wrong password, unknown account, expired legacy hash format → 401. Invalid password length/email → 400. Old bcrypt accounts require recovery/recreation; they cannot be converted automatically.\n\nExamples are illustrative, not captured production data.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "[\"access_token\", \"user_id\", \"reading_id\", \"created_reading_id\", \"deleted_reading_id\"].forEach(key => pm.environment.set(key, \"\"));",
+                  "if (!pm.environment.get(\"email\")) { pm.execution.skipRequest(); throw new Error(\"Set email or complete the preceding setup request first.\"); }",
+                  "if (!pm.environment.get(\"password\")) { pm.execution.skipRequest(); throw new Error(\"Set password or complete the preceding setup request first.\"); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "if (pm.response.code === 200) { const data = pm.response.json(); pm.environment.set(\"access_token\", data.token); pm.environment.set(\"user_id\", data.user.id); }",
+                  "const data = pm.response.json();",
+                  "pm.test(\"Bearer token returned\", () => { pm.expect(data.token).to.be.a(\"string\").and.not.empty; pm.expect(data.tokenType).to.eql(\"Bearer\"); pm.expect(data.expiresIn).to.be.a(\"string\"); });",
+                  "pm.test(\"No password hash exposed\", () => pm.expect(data.user).not.to.have.property(\"passwordHash\"));"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "Logged in (illustrative token)",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "_postman_previewlanguage": "json",
+              "cookie": [],
+              "body": "{\n  \"token\": \"<JWT returned only by your own login>\",\n  \"tokenType\": \"Bearer\",\n  \"expiresIn\": \"7d\",\n  \"user\": {\n    \"id\": \"10000000-0000-4000-8000-000000000001\",\n    \"name\": \"Postman Demo Patient\",\n    \"email\": \"postman-demo@example.com\",\n    \"role\": \"patient\",\n    \"createdAt\": \"2026-11-17T09:00:00.000Z\",\n    \"updatedAt\": \"2026-11-17T09:00:00.000Z\"\n  }\n}",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{base_url}}/api/auth/login",
+                "description": "Uses environment email/password. Expected 200. Saves access_token and user_id for all protected requests. Clears any previous token and reading IDs before login, preventing reuse after a failed login or account switch. Wrong password, unknown account, expired legacy hash format → 401. Invalid password length/email → 400. Old bcrypt accounts require recovery/recreation; they cannot be converted automatically.\n\nExamples are illustrative, not captured production data.",
+                "auth": {
+                  "type": "noauth"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Invalid credentials",
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "_postman_previewlanguage": "json",
+              "cookie": [],
+              "body": "{\n  \"message\": \"Invalid email or password.\"\n}",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{base_url}}/api/auth/login",
+                "description": "Uses environment email/password. Expected 200. Saves access_token and user_id for all protected requests. Clears any previous token and reading IDs before login, preventing reuse after a failed login or account switch. Wrong password, unknown account, expired legacy hash format → 401. Invalid password length/email → 400. Old bcrypt accounts require recovery/recreation; they cannot be converted automatically.\n\nExamples are illustrative, not captured production data.",
+                "auth": {
+                  "type": "noauth"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get current user",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/auth/me",
+            "description": "Returns the authenticated public user. Missing, forged or expired Bearer token → 401. No password hash is returned.\n\nExamples are illustrative, not captured production data."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get(\"access_token\")) { pm.execution.skipRequest(); throw new Error(\"Set access_token or complete the preceding setup request first.\"); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Correct current user\", () => pm.expect(pm.response.json().user.id).to.eql(pm.environment.get(\"user_id\")));",
+                  "pm.test(\"No password hash exposed\", () => pm.expect(pm.response.json().user).not.to.have.property(\"passwordHash\"));"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "Current user",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "_postman_previewlanguage": "json",
+              "cookie": [],
+              "body": "{\n  \"user\": {\n    \"id\": \"10000000-0000-4000-8000-000000000001\",\n    \"name\": \"Postman Demo Patient\",\n    \"email\": \"postman-demo@example.com\",\n    \"role\": \"patient\",\n    \"createdAt\": \"2026-11-17T09:00:00.000Z\",\n    \"updatedAt\": \"2026-11-17T09:00:00.000Z\"\n  }\n}",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{base_url}}/api/auth/me",
+                "description": "Returns the authenticated public user. Missing, forged or expired Bearer token → 401. No password hash is returned.\n\nExamples are illustrative, not captured production data."
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "02 — Reading lifecycle",
+      "description": "Requires login. Create saves the ID used by subsequent requests. Dates default once to today in app_timezone. Do not use a pre-existing patient account for automated demonstrations.",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.environment.get(\"access_token\")) { pm.execution.skipRequest(); throw new Error(\"Set access_token or complete the preceding setup request first.\"); }"
+            ]
+          }
+        }
+      ],
+      "item": [
+        {
+          "name": "Create reading and save its ID",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/readings",
+            "description": "Creates one reading for reading_date/reading_slot and value 100. Expected 201; duplicate user/date/slot → 409. The four slots and unique constraint enforce max four per day. Dates may be historical, but not future. Clears old reading state before attempting creation. Never supply userId: ownership comes from JWT.\n\nExamples are illustrative, not captured production data.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"date\": \"{{reading_date}}\",\n  \"slot\": \"{{reading_slot}}\",\n  \"value\": 100\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "[\"reading_id\", \"created_reading_id\", \"deleted_reading_id\"].forEach(key => pm.environment.unset(key));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code === 201) { const reading = pm.response.json().reading; pm.environment.set(\"reading_id\", reading.id); pm.environment.set(\"created_reading_id\", reading.id); }",
+                  "pm.test(\"Reading belongs to current user\", () => pm.expect(pm.response.json().reading.userId).to.eql(pm.environment.get(\"user_id\")));",
+                  "pm.test(\"Created value\", () => pm.expect(pm.response.json().reading.value).to.eql(100));"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "Created reading",
+              "status": "Created",
+              "code": 201,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "_postman_previewlanguage": "json",
+              "cookie": [],
+              "body": "{\n  \"reading\": {\n    \"id\": \"20000000-0000-4000-8000-000000000001\",\n    \"userId\": \"10000000-0000-4000-8000-000000000001\",\n    \"date\": \"2026-11-17\",\n    \"slot\": \"morning_fasting\",\n    \"value\": 100,\n    \"createdAt\": \"2026-11-17T09:05:00.000Z\",\n    \"updatedAt\": \"2026-11-17T09:05:00.000Z\"\n  }\n}",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{base_url}}/api/readings",
+                "description": "Creates one reading for reading_date/reading_slot and value 100. Expected 201; duplicate user/date/slot → 409. The four slots and unique constraint enforce max four per day. Dates may be historical, but not future. Clears old reading state before attempting creation. Never supply userId: ownership comes from JWT.\n\nExamples are illustrative, not captured production data.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"date\": \"{{reading_date}}\",\n  \"slot\": \"{{reading_slot}}\",\n  \"value\": 100\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Duplicate slot",
+              "status": "Conflict",
+              "code": 409,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "_postman_previewlanguage": "json",
+              "cookie": [],
+              "body": "{\n  \"message\": \"You already have an morning fasting reading for this date. You can add only 4 readings per day.\"\n}",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{base_url}}/api/readings",
+                "description": "Creates one reading for reading_date/reading_slot and value 100. Expected 201; duplicate user/date/slot → 409. The four slots and unique constraint enforce max four per day. Dates may be historical, but not future. Clears old reading state before attempting creation. Never supply userId: ownership comes from JWT.\n\nExamples are illustrative, not captured production data.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"date\": \"{{reading_date}}\",\n  \"slot\": \"{{reading_slot}}\",\n  \"value\": 100\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get created reading",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/readings/{{reading_id}}",
+            "description": "Retrieves only an owned reading. Missing or another user’s ID → 404; malformed UUID → 400.\n\nExamples are illustrative, not captured production data."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get(\"reading_id\")) { pm.execution.skipRequest(); throw new Error(\"Set reading_id or complete the preceding setup request first.\"); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Correct reading\", () => pm.expect(pm.response.json().reading.id).to.eql(pm.environment.get(\"reading_id\")));"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "Owned reading",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "_postman_previewlanguage": "json",
+              "cookie": [],
+              "body": "{\n  \"reading\": {\n    \"id\": \"20000000-0000-4000-8000-000000000001\",\n    \"userId\": \"10000000-0000-4000-8000-000000000001\",\n    \"date\": \"2026-11-17\",\n    \"slot\": \"morning_fasting\",\n    \"value\": 100,\n    \"createdAt\": \"2026-11-17T09:05:00.000Z\",\n    \"updatedAt\": \"2026-11-17T09:05:00.000Z\"\n  }\n}",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{base_url}}/api/readings/{{reading_id}}",
+                "description": "Retrieves only an owned reading. Missing or another user’s ID → 404; malformed UUID → 400.\n\nExamples are illustrative, not captured production data."
+              }
+            },
+            {
+              "name": "Missing or not owned",
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "_postman_previewlanguage": "json",
+              "cookie": [],
+              "body": "{\n  \"message\": \"Reading not found.\"\n}",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{base_url}}/api/readings/{{reading_id}}",
+                "description": "Retrieves only an owned reading. Missing or another user’s ID → 404; malformed UUID → 400.\n\nExamples are illustrative, not captured production data."
+              }
+            }
+          ]
+        },
+        {
+          "name": "List all own readings",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/readings",
+            "description": "Returns { readings: [] } when empty. Sorted by date descending and slot order ascending. No pagination is implemented.\n\nExamples are illustrative, not captured production data."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Own readings only\", () => { const rows = pm.response.json().readings; pm.expect(rows).to.be.an(\"array\"); rows.forEach(row => pm.expect(row.userId).to.eql(pm.environment.get(\"user_id\"))); });"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "Readings",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "_postman_previewlanguage": "json",
+              "cookie": [],
+              "body": "{\n  \"readings\": [\n    {\n      \"id\": \"20000000-0000-4000-8000-000000000001\",\n      \"userId\": \"10000000-0000-4000-8000-000000000001\",\n      \"date\": \"2026-11-17\",\n      \"slot\": \"morning_fasting\",\n      \"value\": 100,\n      \"createdAt\": \"2026-11-17T09:05:00.000Z\",\n      \"updatedAt\": \"2026-11-17T09:05:00.000Z\"\n    }\n  ]\n}",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{base_url}}/api/readings",
+                "description": "Returns { readings: [] } when empty. Sorted by date descending and slot order ascending. No pagination is implemented.\n\nExamples are illustrative, not captured production data."
+              }
+            },
+            {
+              "name": "Empty list",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "_postman_previewlanguage": "json",
+              "cookie": [],
+              "body": "{\n  \"readings\": []\n}",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{base_url}}/api/readings",
+                "description": "Returns { readings: [] } when empty. Sorted by date descending and slot order ascending. No pagination is implemented.\n\nExamples are illustrative, not captured production data."
+              }
+            }
+          ]
+        },
+        {
+          "name": "List own readings for date",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/readings?date={{reading_date}}",
+            "description": "Same list filtered by reading_date (YYYY-MM-DD). Invalid/future date → 400. Does not change selected_date used for reports.\n\nExamples are illustrative, not captured production data."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Date filter\", () => { const rows = pm.response.json().readings; pm.expect(rows).to.be.an(\"array\"); rows.forEach(row => pm.expect(row.date).to.eql(pm.environment.get(\"reading_date\"))); });"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "Filtered readings",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "_postman_previewlanguage": "json",
+              "cookie": [],
+              "body": "{\n  \"readings\": [\n    {\n      \"id\": \"20000000-0000-4000-8000-000000000001\",\n      \"userId\": \"10000000-0000-4000-8000-000000000001\",\n      \"date\": \"2026-11-17\",\n      \"slot\": \"morning_fasting\",\n      \"value\": 100,\n      \"createdAt\": \"2026-11-17T09:05:00.000Z\",\n      \"updatedAt\": \"2026-11-17T09:05:00.000Z\"\n    }\n  ]\n}",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{base_url}}/api/readings?date={{reading_date}}",
+                "description": "Same list filtered by reading_date (YYYY-MM-DD). Invalid/future date → 400. Does not change selected_date used for reports.\n\nExamples are illustrative, not captured production data."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update glucose value only",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/readings/{{reading_id}}",
+            "description": "Changes value to 125 mg/dl. value is required, integer 40–600. Empty body, null/string/decimal/out-of-range value, date, slot or other unknown fields → 400. Correcting date/slot requires delete and recreate.\n\nExamples are illustrative, not captured production data.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"value\": 125\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get(\"reading_id\")) { pm.execution.skipRequest(); throw new Error(\"Set reading_id or complete the preceding setup request first.\"); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Updated value\", () => pm.expect(pm.response.json().reading.value).to.eql(125));"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "Updated reading",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "_postman_previewlanguage": "json",
+              "cookie": [],
+              "body": "{\n  \"reading\": {\n    \"id\": \"20000000-0000-4000-8000-000000000001\",\n    \"userId\": \"10000000-0000-4000-8000-000000000001\",\n    \"date\": \"2026-11-17\",\n    \"slot\": \"morning_fasting\",\n    \"value\": 125,\n    \"createdAt\": \"2026-11-17T09:05:00.000Z\",\n    \"updatedAt\": \"2026-11-17T09:05:00.000Z\"\n  }\n}",
+              "originalRequest": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{base_url}}/api/readings/{{reading_id}}",
+                "description": "Changes value to 125 mg/dl. value is required, integer 40–600. Empty body, null/string/decimal/out-of-range value, date, slot or other unknown fields → 400. Correcting date/slot requires delete and recreate.\n\nExamples are illustrative, not captured production data.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"value\": 125\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "03 — Reports",
+      "description": "Read-only, authenticated, selected_date=YYYY-MM-DD. Defaults to reading_date. Statistics include only the current user. Numeric averages are rounded to one decimal but JSON may show 125 instead of 125.0.",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.environment.get(\"access_token\")) { pm.execution.skipRequest(); throw new Error(\"Set access_token or complete the preceding setup request first.\"); }"
+            ]
+          }
+        }
+      ],
+      "item": [
+        {
+          "name": "Daily report",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/reports/daily?date={{selected_date}}",
+            "description": "For the selected date only. Includes reading rows in slot order plus highest, lowest, average, count. Empty: count=0, null statistics, friendly message, readings=[].\n\nExamples are illustrative, not captured production data."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "const report = pm.response.json();",
+                  "pm.test(\"Report structure\", () => { pm.expect(report.count).to.be.a(\"number\"); pm.expect(report.selectedDate).to.eql(pm.environment.get(\"selected_date\")); });",
+                  "pm.test(\"Statistics or friendly empty state\", () => {",
+                  "  if (report.count === 0) {",
+                  "    [\"highest\", \"lowest\", \"average\"].forEach(key => pm.expect(report[key]).to.eql(null));",
+                  "    pm.expect(report.message).to.be.a(\"string\").and.not.empty;",
+                  "  } else {",
+                  "    [\"highest\", \"lowest\", \"average\"].forEach(key => pm.expect(report[key]).to.be.a(\"number\"));",
+                  "    pm.expect(report.lowest).to.be.at.most(report.average);",
+                  "    pm.expect(report.average).to.be.at.most(report.highest);",
+                  "  }",
+                  "});",
+                  "pm.test(\"Daily readings included\", () => { const data = pm.response.json(); pm.expect(data.readings).to.be.an(\"array\"); pm.expect(data.readings.length).to.eql(data.count); });"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "Daily report",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "_postman_previewlanguage": "json",
+              "cookie": [],
+              "body": "{\n  \"type\": \"daily\",\n  \"selectedDate\": \"2026-11-17\",\n  \"from\": \"2026-11-17\",\n  \"to\": \"2026-11-17\",\n  \"count\": 1,\n  \"highest\": 100,\n  \"lowest\": 100,\n  \"average\": 100,\n  \"message\": null,\n  \"readings\": [\n    {\n      \"id\": \"20000000-0000-4000-8000-000000000001\",\n      \"userId\": \"10000000-0000-4000-8000-000000000001\",\n      \"date\": \"2026-11-17\",\n      \"slot\": \"morning_fasting\",\n      \"value\": 100,\n      \"createdAt\": \"2026-11-17T09:05:00.000Z\",\n      \"updatedAt\": \"2026-11-17T09:05:00.000Z\"\n    }\n  ]\n}",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{base_url}}/api/reports/daily?date={{selected_date}}",
+                "description": "For the selected date only. Includes reading rows in slot order plus highest, lowest, average, count. Empty: count=0, null statistics, friendly message, readings=[].\n\nExamples are illustrative, not captured production data."
+              }
+            },
+            {
+              "name": "Empty daily report",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "_postman_previewlanguage": "json",
+              "cookie": [],
+              "body": "{\n  \"type\": \"daily\",\n  \"selectedDate\": \"2026-11-17\",\n  \"from\": \"2026-11-17\",\n  \"to\": \"2026-11-17\",\n  \"count\": 0,\n  \"highest\": null,\n  \"lowest\": null,\n  \"average\": null,\n  \"message\": \"No readings recorded for this period yet.\",\n  \"readings\": []\n}",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{base_url}}/api/reports/daily?date={{selected_date}}",
+                "description": "For the selected date only. Includes reading rows in slot order plus highest, lowest, average, count. Empty: count=0, null statistics, friendly message, readings=[].\n\nExamples are illustrative, not captured production data."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Month-to-date report",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/reports/month-to-date?date={{selected_date}}",
+            "description": "From the first day of the selected date’s month through selected_date, inclusive. Not necessarily the current real-world month. Does not include a readings array.\n\nExamples are illustrative, not captured production data."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "const report = pm.response.json();",
+                  "pm.test(\"Report structure\", () => { pm.expect(report.count).to.be.a(\"number\"); pm.expect(report.selectedDate).to.eql(pm.environment.get(\"selected_date\")); });",
+                  "pm.test(\"Statistics or friendly empty state\", () => {",
+                  "  if (report.count === 0) {",
+                  "    [\"highest\", \"lowest\", \"average\"].forEach(key => pm.expect(report[key]).to.eql(null));",
+                  "    pm.expect(report.message).to.be.a(\"string\").and.not.empty;",
+                  "  } else {",
+                  "    [\"highest\", \"lowest\", \"average\"].forEach(key => pm.expect(report[key]).to.be.a(\"number\"));",
+                  "    pm.expect(report.lowest).to.be.at.most(report.average);",
+                  "    pm.expect(report.average).to.be.at.most(report.highest);",
+                  "  }",
+                  "});",
+                  "pm.test(\"Month-to-date boundaries\", () => { const data = pm.response.json(); pm.expect(data.from).to.eql(data.selectedDate.slice(0, 7) + \"-01\"); pm.expect(data.to).to.eql(data.selectedDate); });"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "Month-to-date example",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "_postman_previewlanguage": "json",
+              "cookie": [],
+              "body": "{\n  \"type\": \"month-to-date\",\n  \"selectedDate\": \"2026-11-17\",\n  \"from\": \"2026-11-01\",\n  \"to\": \"2026-11-17\",\n  \"count\": 1,\n  \"highest\": 100,\n  \"lowest\": 100,\n  \"average\": 100,\n  \"message\": null\n}",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{base_url}}/api/reports/month-to-date?date={{selected_date}}",
+                "description": "From the first day of the selected date’s month through selected_date, inclusive. Not necessarily the current real-world month. Does not include a readings array.\n\nExamples are illustrative, not captured production data."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Entire previous calendar month report",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/reports/monthly?date={{selected_date}}",
+            "description": "The full calendar month before selected_date’s month—not a rolling 30 days. For 2026-11-17, range is 2026-10-01 through 2026-10-31. Handles leap years and year boundaries. Does not include reading rows.\n\nExamples are illustrative, not captured production data."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "const report = pm.response.json();",
+                  "pm.test(\"Report structure\", () => { pm.expect(report.count).to.be.a(\"number\"); pm.expect(report.selectedDate).to.eql(pm.environment.get(\"selected_date\")); });",
+                  "pm.test(\"Statistics or friendly empty state\", () => {",
+                  "  if (report.count === 0) {",
+                  "    [\"highest\", \"lowest\", \"average\"].forEach(key => pm.expect(report[key]).to.eql(null));",
+                  "    pm.expect(report.message).to.be.a(\"string\").and.not.empty;",
+                  "  } else {",
+                  "    [\"highest\", \"lowest\", \"average\"].forEach(key => pm.expect(report[key]).to.be.a(\"number\"));",
+                  "    pm.expect(report.lowest).to.be.at.most(report.average);",
+                  "    pm.expect(report.average).to.be.at.most(report.highest);",
+                  "  }",
+                  "});",
+                  "pm.test(\"Previous calendar month boundaries\", () => { const data = pm.response.json(); const first = new Date(data.selectedDate.slice(0, 7) + \"-01T00:00:00Z\"); const last = new Date(first.getTime() - 86400000).toISOString().slice(0, 10); pm.expect(data.to).to.eql(last); pm.expect(data.from).to.eql(last.slice(0, 7) + \"-01\"); });"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "Empty previous month",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "_postman_previewlanguage": "json",
+              "cookie": [],
+              "body": "{\n  \"type\": \"monthly\",\n  \"selectedDate\": \"2026-11-17\",\n  \"from\": \"2026-10-01\",\n  \"to\": \"2026-10-31\",\n  \"count\": 0,\n  \"highest\": null,\n  \"lowest\": null,\n  \"average\": null,\n  \"message\": \"No readings recorded for this period yet.\"\n}",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{base_url}}/api/reports/monthly?date={{selected_date}}",
+                "description": "The full calendar month before selected_date’s month—not a rolling 30 days. For 2026-11-17, range is 2026-10-01 through 2026-10-31. Handles leap years and year boundaries. Does not include reading rows.\n\nExamples are illustrative, not captured production data."
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "04 — Expected validation errors",
+      "description": "These tests PASS when the server rejects the request. Use only synthetic test data. Successful rejection does not create or modify a reading.",
+      "item": [
+        {
+          "name": "Reject missing authentication",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/readings",
+            "description": "Intentionally sends no Bearer token. Expected 401.\n\nExamples are illustrative, not captured production data.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 401\", () => pm.response.to.have.status(401));",
+                  "pm.test(\"Readable error\", () => pm.expect(pm.response.json().message).to.be.a(\"string\").and.not.empty);"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "Unauthenticated",
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "_postman_previewlanguage": "json",
+              "cookie": [],
+              "body": "{\n  \"message\": \"Authorization is required for request on GET /api/readings\"\n}",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{base_url}}/api/readings",
+                "description": "Intentionally sends no Bearer token. Expected 401.\n\nExamples are illustrative, not captured production data.",
+                "auth": {
+                  "type": "noauth"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reject duplicate date and slot",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/readings",
+            "description": "Run after creating the reading, before deleting it. Reuses exactly the same date and slot. Expected 409; does not overwrite the original value.\n\nExamples are illustrative, not captured production data.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"date\": \"{{reading_date}}\",\n  \"slot\": \"{{reading_slot}}\",\n  \"value\": 100\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get(\"access_token\")) { pm.execution.skipRequest(); throw new Error(\"Set access_token or complete the preceding setup request first.\"); }",
+                  "if (!pm.environment.get(\"reading_id\")) { pm.execution.skipRequest(); throw new Error(\"Set reading_id or complete the preceding setup request first.\"); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 409\", () => pm.response.to.have.status(409));",
+                  "pm.test(\"Readable error\", () => pm.expect(pm.response.json().message).to.be.a(\"string\").and.not.empty);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reject invalid glucose value",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/readings",
+            "description": "601 is outside 40–600 and must be rejected before database insertion. Expected 400.\n\nExamples are illustrative, not captured production data.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"date\": \"{{reading_date}}\",\n  \"slot\": \"{{reading_slot}}\",\n  \"value\": 601\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get(\"access_token\")) { pm.execution.skipRequest(); throw new Error(\"Set access_token or complete the preceding setup request first.\"); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Readable error\", () => pm.expect(pm.response.json().message).to.be.a(\"string\").and.not.empty);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reject date change on update",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/readings/{{reading_id}}",
+            "description": "Even with a valid value, a supplied date is forbidden. Expected 400. No reading fields should change.\n\nExamples are illustrative, not captured production data.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"value\": 150,\n  \"date\": \"{{reading_date}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get(\"access_token\")) { pm.execution.skipRequest(); throw new Error(\"Set access_token or complete the preceding setup request first.\"); }",
+                  "if (!pm.environment.get(\"reading_id\")) { pm.execution.skipRequest(); throw new Error(\"Set reading_id or complete the preceding setup request first.\"); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Readable error\", () => pm.expect(pm.response.json().message).to.be.a(\"string\").and.not.empty);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reject invalid report date",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/reports/daily?date=not-a-date",
+            "description": "Calendar validation rejects this query. Missing or future dates are also rejected. Expected 400.\n\nExamples are illustrative, not captured production data."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get(\"access_token\")) { pm.execution.skipRequest(); throw new Error(\"Set access_token or complete the preceding setup request first.\"); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Readable error\", () => pm.expect(pm.response.json().message).to.be.a(\"string\").and.not.empty);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "05 — Clean up the created reading",
+      "description": "Destructive: deletes only the ID saved after a successful Create reading request. Never substitutes another ID. The demo account remains, as the API has no account-deletion endpoint.",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.environment.get(\"access_token\")) { pm.execution.skipRequest(); throw new Error(\"Set access_token or complete the preceding setup request first.\"); }"
+            ]
+          }
+        }
+      ],
+      "item": [
+        {
+          "name": "Delete collection-created reading",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/readings/{{reading_id}}",
+            "description": "Expected 204 and an empty response body. A guard refuses to send if reading_id does not match created_reading_id. Only execute against a disposable collection-created reading.\n\nExamples are illustrative, not captured production data."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get(\"reading_id\")) { pm.execution.skipRequest(); throw new Error(\"Set reading_id or complete the preceding setup request first.\"); }",
+                  "if (pm.environment.get(\"reading_id\") !== pm.environment.get(\"created_reading_id\")) { pm.execution.skipRequest(); throw new Error(\"Refusing cleanup: this reading was not saved by the Create request.\"); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 204\", () => pm.response.to.have.status(204));",
+                  "pm.test(\"No response body\", () => pm.expect(pm.response.text()).to.eql(\"\"));",
+                  "if (pm.response.code === 204) { pm.environment.set(\"deleted_reading_id\", pm.environment.get(\"reading_id\")); pm.environment.unset(\"reading_id\"); pm.environment.unset(\"created_reading_id\"); }"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "Deleted",
+              "status": "No Content",
+              "code": 204,
+              "header": [],
+              "_postman_previewlanguage": "json",
+              "cookie": [],
+              "body": "",
+              "originalRequest": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{base_url}}/api/readings/{{reading_id}}",
+                "description": "Expected 204 and an empty response body. A guard refuses to send if reading_id does not match created_reading_id. Only execute against a disposable collection-created reading.\n\nExamples are illustrative, not captured production data."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Confirm deleted reading is gone",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/readings/{{deleted_reading_id}}",
+            "description": "Expected 404 after successful deletion. Keeps deleted_reading_id solely so this confirmation can be repeated.\n\nExamples are illustrative, not captured production data."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get(\"deleted_reading_id\")) { pm.execution.skipRequest(); throw new Error(\"Set deleted_reading_id or complete the preceding setup request first.\"); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 404\", () => pm.response.to.have.status(404));",
+                  "pm.test(\"Readable error\", () => pm.expect(pm.response.json().message).to.be.a(\"string\").and.not.empty);"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "Reading deleted",
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "_postman_previewlanguage": "json",
+              "cookie": [],
+              "body": "{\n  \"message\": \"Reading not found.\"\n}",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{base_url}}/api/readings/{{deleted_reading_id}}",
+                "description": "Expected 404 after successful deletion. Keeps deleted_reading_id solely so this confirmation can be repeated.\n\nExamples are illustrative, not captured production data."
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

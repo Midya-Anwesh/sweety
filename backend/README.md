@@ -71,6 +71,12 @@ Do not generate migrations into `dist/`; it is generated output.
 
 ## API
 
+For an importable, documented Postman collection with the deployed Render
+environment, token/reading ID capture and example responses, see
+**[postman/README.md](postman/README.md)**. Set a 180-second request timeout for
+the first Render call. Running the full collection creates a demo account and
+creates, edits and deletes its test reading; importing alone sends nothing.
+
 All endpoints accept/return JSON. Protected endpoints require:
 
 ```text
