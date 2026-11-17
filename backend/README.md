@@ -97,7 +97,7 @@ Authorization: Bearer <token returned by login>
 | POST | `/api/auth/login` | `{ email, password }`, returns token and user |
 | GET | `/api/auth/me` | Current user |
 | POST | `/api/readings` | `{ date, slot, value }` (201) |
-| GET | `/api/readings` | Own readings, newest date first, slot order within date |
+| GET | `/api/readings` | Own readings, newest creation time first (ID breaks ties) |
 | GET | `/api/readings?date=YYYY-MM-DD` | Own readings for a date |
 | GET | `/api/readings/:id` | Own reading |
 | PATCH | `/api/readings/:id` | `{ value }`; date and slot cannot be changed |

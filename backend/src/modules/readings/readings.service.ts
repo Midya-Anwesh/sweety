@@ -15,7 +15,7 @@ export class ReadingsService {
     if (date !== undefined) validateDate(date);
     const readings = await this.readings.find({
       where: date === undefined ? { userId } : { userId, date },
-      order: { date: 'DESC', slot: 'ASC' },
+      order: { createdAt: 'DESC', id: 'DESC' },
     });
     return { readings };
   }

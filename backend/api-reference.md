@@ -157,7 +157,8 @@ Protected; no payload. Optional query `date=YYYY-MM-DD`:
 `/api/readings?date=2026-01-15`.
 
 - **200:** `{ "readings": [<reading>, ...] }`. Only the caller's data, ordered by
-  date descending then slot order. No matching rows: `{ "readings": [] }`.
+  creation timestamp descending, with ID descending to break ties. This is entry
+  order, not reading-date order. No matching rows: `{ "readings": [] }`.
 - Omitting `date` returns all own readings; pagination is not implemented.
 - **400:** supplied date is invalid or in the future.
 - **401:** unauthenticated.

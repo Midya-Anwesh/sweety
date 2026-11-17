@@ -685,7 +685,7 @@
               }
             ],
             "url": "{{BASE_URL}}/api/readings",
-            "description": "Returns { readings: [] } when empty. Sorted by date descending and slot order ascending. No pagination is implemented.\n\nExamples are illustrative, not captured production data."
+            "description": "Returns { readings: [] } when empty. Sorted by creation timestamp descending (ID descending breaks ties), not reading date. No pagination is implemented.\n\nExamples are illustrative, not captured production data."
           },
           "event": [
             {
@@ -722,7 +722,7 @@
                   }
                 ],
                 "url": "{{BASE_URL}}/api/readings",
-                "description": "Returns { readings: [] } when empty. Sorted by date descending and slot order ascending. No pagination is implemented.\n\nExamples are illustrative, not captured production data."
+                "description": "Returns { readings: [] } when empty. Sorted by creation timestamp descending (ID descending breaks ties), not reading date. No pagination is implemented.\n\nExamples are illustrative, not captured production data."
               }
             },
             {
@@ -747,7 +747,7 @@
                   }
                 ],
                 "url": "{{BASE_URL}}/api/readings",
-                "description": "Returns { readings: [] } when empty. Sorted by date descending and slot order ascending. No pagination is implemented.\n\nExamples are illustrative, not captured production data."
+                "description": "Returns { readings: [] } when empty. Sorted by creation timestamp descending (ID descending breaks ties), not reading date. No pagination is implemented.\n\nExamples are illustrative, not captured production data."
               }
             }
           ]

@@ -204,7 +204,7 @@ const collection = {
           tests: ['pm.test("Correct reading", () => pm.expect(pm.response.json().reading.id).to.eql(pm.collectionVariables.get("reading_id")));'],
           examples: [example('Owned reading', 200, { reading }), example('Missing or not owned', 404, { message: 'Reading not found.' })],
         }),
-        request('List all own readings', 'GET', '/readings', 'Returns { readings: [] } when empty. Sorted by date descending and slot order ascending. No pagination is implemented.', {
+        request('List all own readings', 'GET', '/readings', 'Returns { readings: [] } when empty. Sorted by creation timestamp descending (ID descending breaks ties), not reading date. No pagination is implemented.', {
           tests: ['pm.test("Own readings only", () => { const rows = pm.response.json().readings; pm.expect(rows).to.be.an("array"); rows.forEach(row => pm.expect(row.userId).to.eql(pm.collectionVariables.get("user_id"))); });'],
           examples: [example('Readings', 200, { readings: [reading] }), example('Empty list', 200, { readings: [] })],
         }),
