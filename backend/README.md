@@ -77,7 +77,10 @@ environment, token/reading ID capture and example responses, see
 the first Render call. Running the full collection creates a demo account and
 creates, edits and deletes its test reading; importing alone sends nothing.
 The Postman environment has only `BASE_URL` and `APP_TIMEZONE`. Payload fields
-and captured tokens/IDs are collection variables. See the
+are direct editable JSON values, and date queries are literal examples.
+Only captured tokens/IDs and a server-switch guard use collection variables.
+Edit Register and Login with matching synthetic credentials before a full run.
+See the
 **[complete API reference](api-reference.md)** for each request payload, success
 response shape, and error behavior.
 

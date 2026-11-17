@@ -3,7 +3,7 @@
     "_postman_id": "5a19f2ad-2b8b-4a35-8410-c0b0b79bb712",
     "name": "Sweety — Blood Glucose Tracker API",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "# Sweety API\n\nImport the companion **Sweety — Render** environment and select it before sending requests.\n\nThe environment contains only `BASE_URL` and `APP_TIMEZONE`. Every URL uses `BASE_URL`, initially `https://sweety-qj4d.onrender.com` (without `/api` or a trailing slash). Credentials, token, IDs and dates are collection variables, not environment settings.\n\n## Cold starts\n\nSet Postman Settings → General → Request timeout in ms to **180000**. The first health request may take a minute or more. This timeout is a client setting, not an environment variable a collection can enforce.\n\n## Run order and side effects\n\nRun folders 00 → 05, in order, for a complete demonstration. This creates a synthetic account and one reading, edits that reading, then deletes only the reading created by this collection. The account remains because no user-delete API exists. Do not use real patient data.\n\nThe health folder is read-only. Running the entire collection against Render WILL write to the Supabase-backed service. The collection does not auto-run on import.\n\nOn first registration, blank email/password variables are filled with fresh demo values locally. They are reused for login. To run again with a new account, clear `email` and `password`; sending registration again with the same email correctly returns 409.\n\nLogin saves `access_token` and `user_id` as collection variables. Creation saves `reading_id` and a cleanup guard. A failed login/create clears stale state rather than reusing another account or reading. Switching BASE_URL automatically clears collection credentials, token, IDs and dates before sending.\n\n## API rules\n\nRoles: `patient` or `doctor`; both access only their own data. Passwords: Argon2id, 8–128 Unicode code points. JWT lifetime: server-configured, normally 7 days.\n\nSlots: `morning_fasting`, `after_breakfast`, `after_lunch`, `after_dinner`. Values: integer 40–600 mg/dl, maximum one reading per user/date/slot. Past dates are allowed; future dates are not.\n\nPATCH accepts only `{ \"value\": 125 }`. Date and slot are immutable. Reports: daily, month-to-date through the selected date, and the entire previous calendar month relative to that date.\n\n## Security\n\nNo API key is required. Protected routes inherit Bearer `{{access_token}}`. Use synthetic demo credentials only for saved collection state. Collection variables may sync with Postman; never publish populated collections or share console Authorization headers.\n\nSee the companion README for variables, sample responses, expected errors, rate limits, and a Newman command."
+    "description": "# Sweety API\n\nImport the companion **Sweety — Render** environment and select it before sending requests.\n\nThe environment contains only `BASE_URL` and `APP_TIMEZONE`. Every URL uses `BASE_URL`, initially `https://sweety-qj4d.onrender.com` (without `/api` or a trailing slash). All payload fields use direct, editable JSON values. Only response-captured tokens/IDs and the server-switch guard use collection variables.\n\n## Cold starts\n\nSet Postman Settings → General → Request timeout in ms to **180000**. The first health request may take a minute or more. This timeout is a client setting, not an environment variable a collection can enforce.\n\n## Run order and side effects\n\nRun folders 00 → 05, in order, for a complete demonstration. This creates a synthetic account and one reading, edits that reading, then deletes only the reading created by this collection. The account remains because no user-delete API exists. Do not use real patient data.\n\nThe health folder is read-only. Running the entire collection against Render WILL write to the Supabase-backed service. The collection does not auto-run on import.\n\nBefore a full run, edit the Register JSON body with a unique synthetic email and a demo password, and enter the same email/password directly in the Login JSON body. Nothing generates or rewrites credentials. Reusing a registered email correctly returns 409. For an existing demo account, skip Register and start with Login.\n\nReading bodies and date query parameters have literal examples. Edit them directly; keep the duplicate-reading request aligned with Create and choose the report/filter dates you want. APP_TIMEZONE documents the server timezone; scripts do not rewrite dates.\n\nLogin saves `access_token` and `user_id` as collection variables. Creation saves `reading_id` and a cleanup guard. A failed login/create clears stale state rather than reusing another account or reading. Switching BASE_URL automatically clears captured tokens/IDs before sending.\n\n## API rules\n\nRoles: `patient` or `doctor`; both access only their own data. Passwords: Argon2id, 8–128 Unicode code points. JWT lifetime: server-configured, normally 7 days.\n\nSlots: `morning_fasting`, `after_breakfast`, `after_lunch`, `after_dinner`. Values: integer 40–600 mg/dl, maximum one reading per user/date/slot. Past dates are allowed; future dates are not.\n\nPATCH accepts only `{ \"value\": 125 }`. Date and slot are immutable. Reports: daily, month-to-date through the selected date, and the entire previous calendar month relative to that date.\n\n## Security\n\nNo API key is required. Protected routes inherit Bearer `{{access_token}}`. Use synthetic demo credentials only. Request bodies and collection variables may sync with Postman; never publish populated collections or share console Authorization headers.\n\nSee the companion README for variables, sample responses, expected errors, rate limits, and a Newman command."
   },
   "auth": {
     "type": "bearer",
@@ -26,15 +26,8 @@
           "  pm.execution.skipRequest(); throw new Error(\"Select the Sweety environment. BASE_URL must be an HTTP(S) origin, without /api or a trailing slash.\");",
           "}",
           "if (pm.collectionVariables.get(\"active_base_url\") !== base) {",
-          "  [\"email\", \"password\", \"access_token\", \"user_id\", \"reading_id\", \"created_reading_id\", \"deleted_reading_id\", \"reading_date\", \"selected_date\"].forEach(key => pm.collectionVariables.set(key, \"\"));",
+          "  [\"access_token\", \"user_id\", \"reading_id\", \"created_reading_id\", \"deleted_reading_id\"].forEach(key => pm.collectionVariables.set(key, \"\"));",
           "  pm.collectionVariables.set(\"active_base_url\", base);",
-          "}",
-          "if (!pm.collectionVariables.get(\"reading_date\") || !pm.collectionVariables.get(\"selected_date\")) {",
-          "  const parts = new Intl.DateTimeFormat(\"en-US\", { timeZone: pm.environment.get(\"APP_TIMEZONE\") || \"Asia/Kolkata\", year: \"numeric\", month: \"2-digit\", day: \"2-digit\" }).formatToParts(new Date());",
-          "  const part = type => parts.find(item => item.type === type).value;",
-          "  const today = `${part(\"year\")}-${part(\"month\")}-${part(\"day\")}`;",
-          "  if (!pm.collectionVariables.get(\"reading_date\")) pm.collectionVariables.set(\"reading_date\", today);",
-          "  if (!pm.collectionVariables.get(\"selected_date\")) pm.collectionVariables.set(\"selected_date\", pm.collectionVariables.get(\"reading_date\"));",
           "}"
         ]
       }
@@ -108,7 +101,7 @@
     },
     {
       "name": "01 — Register, log in, and inspect user",
-      "description": "Registration creates a real synthetic account in the selected service. Login saves the token automatically. Set role to doctor to try that role; it does not enable cross-user access.",
+      "description": "Edit credentials directly in both Register and Login JSON bodies so they match. Registration creates a real synthetic account. Login saves the token automatically. Set role to doctor directly in Register to try that role; it does not enable cross-user access.",
       "item": [
         {
           "name": "Register demo user",
@@ -125,13 +118,13 @@
               }
             ],
             "url": "{{BASE_URL}}/api/auth/register",
-            "description": "Creates an account; does not log in automatically. Expected 201. Names/emails are trimmed; email is lowercased. Existing email → 409. Invalid fields/role/password → 400. Blank email/password are generated locally on first send. Clear both to create a fresh account on a repeat run. No accounts are ever deleted automatically.\n\nExamples are illustrative, not captured production data.",
+            "description": "Creates an account; does not log in automatically. Expected 201. Edit the literal JSON fields directly. Choose a unique synthetic email before registration and copy that email/password into the Login body. Names/emails are trimmed; email is lowercased. Existing email → 409. Invalid fields/role/password → 400. No credentials are generated or rewritten. No accounts are ever deleted automatically.\n\nExamples are illustrative, not captured production data.",
             "auth": {
               "type": "noauth"
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"{{name}}\",\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\",\n  \"role\": \"{{role}}\"\n}",
+              "raw": "{\n  \"name\": \"Postman Demo Patient\",\n  \"email\": \"postman-demo@example.com\",\n  \"password\": \"Demo-password-123!\",\n  \"role\": \"patient\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -145,9 +138,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "[\"access_token\", \"user_id\", \"reading_id\", \"created_reading_id\", \"deleted_reading_id\"].forEach(key => pm.collectionVariables.set(key, \"\"));",
-                  "if (!pm.collectionVariables.get(\"email\")) pm.collectionVariables.set(\"email\", \"sweety-postman-\" + pm.variables.replaceIn(\"{{$guid}}\") + \"@example.com\");",
-                  "if (!pm.collectionVariables.get(\"password\")) pm.collectionVariables.set(\"password\", \"Demo-\" + pm.variables.replaceIn(\"{{$guid}}\") + \"-aA1!\");"
+                  "[\"access_token\", \"user_id\", \"reading_id\", \"created_reading_id\", \"deleted_reading_id\"].forEach(key => pm.collectionVariables.set(key, \"\"));"
                 ]
               }
             },
@@ -159,7 +150,7 @@
                   "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
                   "if (pm.response.code === 201) { const user = pm.response.json().user; pm.collectionVariables.set(\"user_id\", user.id); }",
                   "const user = pm.response.json().user;",
-                  "pm.test(\"Registered selected role\", () => pm.expect(user.role).to.eql(pm.collectionVariables.get(\"role\")));",
+                  "pm.test(\"Registered selected role\", () => pm.expect(user.role).to.eql(JSON.parse(pm.request.body.raw).role));",
                   "pm.test(\"No password hash exposed\", () => pm.expect(user).not.to.have.property(\"passwordHash\"));"
                 ]
               }
@@ -178,7 +169,7 @@
               ],
               "_postman_previewlanguage": "json",
               "cookie": [],
-              "body": "{\n  \"user\": {\n    \"id\": \"10000000-0000-4000-8000-000000000001\",\n    \"name\": \"Postman Demo Patient\",\n    \"email\": \"postman-demo@example.com\",\n    \"role\": \"patient\",\n    \"createdAt\": \"2026-11-17T09:00:00.000Z\",\n    \"updatedAt\": \"2026-11-17T09:00:00.000Z\"\n  }\n}",
+              "body": "{\n  \"user\": {\n    \"id\": \"10000000-0000-4000-8000-000000000001\",\n    \"name\": \"Postman Demo Patient\",\n    \"email\": \"postman-demo@example.com\",\n    \"role\": \"patient\",\n    \"createdAt\": \"2026-01-15T09:00:00.000Z\",\n    \"updatedAt\": \"2026-01-15T09:00:00.000Z\"\n  }\n}",
               "originalRequest": {
                 "method": "POST",
                 "header": [
@@ -192,13 +183,13 @@
                   }
                 ],
                 "url": "{{BASE_URL}}/api/auth/register",
-                "description": "Creates an account; does not log in automatically. Expected 201. Names/emails are trimmed; email is lowercased. Existing email → 409. Invalid fields/role/password → 400. Blank email/password are generated locally on first send. Clear both to create a fresh account on a repeat run. No accounts are ever deleted automatically.\n\nExamples are illustrative, not captured production data.",
+                "description": "Creates an account; does not log in automatically. Expected 201. Edit the literal JSON fields directly. Choose a unique synthetic email before registration and copy that email/password into the Login body. Names/emails are trimmed; email is lowercased. Existing email → 409. Invalid fields/role/password → 400. No credentials are generated or rewritten. No accounts are ever deleted automatically.\n\nExamples are illustrative, not captured production data.",
                 "auth": {
                   "type": "noauth"
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"name\": \"{{name}}\",\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\",\n  \"role\": \"{{role}}\"\n}",
+                  "raw": "{\n  \"name\": \"Postman Demo Patient\",\n  \"email\": \"postman-demo@example.com\",\n  \"password\": \"Demo-password-123!\",\n  \"role\": \"patient\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -233,13 +224,13 @@
                   }
                 ],
                 "url": "{{BASE_URL}}/api/auth/register",
-                "description": "Creates an account; does not log in automatically. Expected 201. Names/emails are trimmed; email is lowercased. Existing email → 409. Invalid fields/role/password → 400. Blank email/password are generated locally on first send. Clear both to create a fresh account on a repeat run. No accounts are ever deleted automatically.\n\nExamples are illustrative, not captured production data.",
+                "description": "Creates an account; does not log in automatically. Expected 201. Edit the literal JSON fields directly. Choose a unique synthetic email before registration and copy that email/password into the Login body. Names/emails are trimmed; email is lowercased. Existing email → 409. Invalid fields/role/password → 400. No credentials are generated or rewritten. No accounts are ever deleted automatically.\n\nExamples are illustrative, not captured production data.",
                 "auth": {
                   "type": "noauth"
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"name\": \"{{name}}\",\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\",\n  \"role\": \"{{role}}\"\n}",
+                  "raw": "{\n  \"name\": \"Postman Demo Patient\",\n  \"email\": \"postman-demo@example.com\",\n  \"password\": \"Demo-password-123!\",\n  \"role\": \"patient\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -265,13 +256,13 @@
               }
             ],
             "url": "{{BASE_URL}}/api/auth/login",
-            "description": "Uses collection email/password. Expected 200. Saves access_token and user_id for all protected requests. Clears any previous token and reading IDs before login, preventing reuse after a failed login or account switch. Wrong password, unknown account, unsupported legacy hash format → 401. Invalid password length/email → 400. Old bcrypt accounts require recovery/recreation; they cannot be converted automatically.\n\nExamples are illustrative, not captured production data.",
+            "description": "Edit email/password directly in this JSON body to match the registered demo account. Expected 200. Saves access_token and user_id for all protected requests. Clears any previous token and reading IDs before login, preventing reuse after a failed login or account switch. Wrong password, unknown account, unsupported legacy hash format → 401. Invalid password length/email → 400. Old bcrypt accounts require recovery/recreation; they cannot be converted automatically.\n\nExamples are illustrative, not captured production data.",
             "auth": {
               "type": "noauth"
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "raw": "{\n  \"email\": \"postman-demo@example.com\",\n  \"password\": \"Demo-password-123!\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -285,9 +276,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "[\"access_token\", \"user_id\", \"reading_id\", \"created_reading_id\", \"deleted_reading_id\"].forEach(key => pm.collectionVariables.set(key, \"\"));",
-                  "if (!pm.collectionVariables.get(\"email\")) { pm.execution.skipRequest(); throw new Error(\"Set email or complete the preceding setup request first.\"); }",
-                  "if (!pm.collectionVariables.get(\"password\")) { pm.execution.skipRequest(); throw new Error(\"Set password or complete the preceding setup request first.\"); }"
+                  "[\"access_token\", \"user_id\", \"reading_id\", \"created_reading_id\", \"deleted_reading_id\"].forEach(key => pm.collectionVariables.set(key, \"\"));"
                 ]
               }
             },
@@ -318,7 +307,7 @@
               ],
               "_postman_previewlanguage": "json",
               "cookie": [],
-              "body": "{\n  \"token\": \"<JWT returned only by your own login>\",\n  \"tokenType\": \"Bearer\",\n  \"expiresIn\": \"7d\",\n  \"user\": {\n    \"id\": \"10000000-0000-4000-8000-000000000001\",\n    \"name\": \"Postman Demo Patient\",\n    \"email\": \"postman-demo@example.com\",\n    \"role\": \"patient\",\n    \"createdAt\": \"2026-11-17T09:00:00.000Z\",\n    \"updatedAt\": \"2026-11-17T09:00:00.000Z\"\n  }\n}",
+              "body": "{\n  \"token\": \"<JWT returned only by your own login>\",\n  \"tokenType\": \"Bearer\",\n  \"expiresIn\": \"7d\",\n  \"user\": {\n    \"id\": \"10000000-0000-4000-8000-000000000001\",\n    \"name\": \"Postman Demo Patient\",\n    \"email\": \"postman-demo@example.com\",\n    \"role\": \"patient\",\n    \"createdAt\": \"2026-01-15T09:00:00.000Z\",\n    \"updatedAt\": \"2026-01-15T09:00:00.000Z\"\n  }\n}",
               "originalRequest": {
                 "method": "POST",
                 "header": [
@@ -332,13 +321,13 @@
                   }
                 ],
                 "url": "{{BASE_URL}}/api/auth/login",
-                "description": "Uses collection email/password. Expected 200. Saves access_token and user_id for all protected requests. Clears any previous token and reading IDs before login, preventing reuse after a failed login or account switch. Wrong password, unknown account, unsupported legacy hash format → 401. Invalid password length/email → 400. Old bcrypt accounts require recovery/recreation; they cannot be converted automatically.\n\nExamples are illustrative, not captured production data.",
+                "description": "Edit email/password directly in this JSON body to match the registered demo account. Expected 200. Saves access_token and user_id for all protected requests. Clears any previous token and reading IDs before login, preventing reuse after a failed login or account switch. Wrong password, unknown account, unsupported legacy hash format → 401. Invalid password length/email → 400. Old bcrypt accounts require recovery/recreation; they cannot be converted automatically.\n\nExamples are illustrative, not captured production data.",
                 "auth": {
                   "type": "noauth"
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+                  "raw": "{\n  \"email\": \"postman-demo@example.com\",\n  \"password\": \"Demo-password-123!\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -373,13 +362,13 @@
                   }
                 ],
                 "url": "{{BASE_URL}}/api/auth/login",
-                "description": "Uses collection email/password. Expected 200. Saves access_token and user_id for all protected requests. Clears any previous token and reading IDs before login, preventing reuse after a failed login or account switch. Wrong password, unknown account, unsupported legacy hash format → 401. Invalid password length/email → 400. Old bcrypt accounts require recovery/recreation; they cannot be converted automatically.\n\nExamples are illustrative, not captured production data.",
+                "description": "Edit email/password directly in this JSON body to match the registered demo account. Expected 200. Saves access_token and user_id for all protected requests. Clears any previous token and reading IDs before login, preventing reuse after a failed login or account switch. Wrong password, unknown account, unsupported legacy hash format → 401. Invalid password length/email → 400. Old bcrypt accounts require recovery/recreation; they cannot be converted automatically.\n\nExamples are illustrative, not captured production data.",
                 "auth": {
                   "type": "noauth"
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+                  "raw": "{\n  \"email\": \"postman-demo@example.com\",\n  \"password\": \"Demo-password-123!\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -438,7 +427,7 @@
               ],
               "_postman_previewlanguage": "json",
               "cookie": [],
-              "body": "{\n  \"user\": {\n    \"id\": \"10000000-0000-4000-8000-000000000001\",\n    \"name\": \"Postman Demo Patient\",\n    \"email\": \"postman-demo@example.com\",\n    \"role\": \"patient\",\n    \"createdAt\": \"2026-11-17T09:00:00.000Z\",\n    \"updatedAt\": \"2026-11-17T09:00:00.000Z\"\n  }\n}",
+              "body": "{\n  \"user\": {\n    \"id\": \"10000000-0000-4000-8000-000000000001\",\n    \"name\": \"Postman Demo Patient\",\n    \"email\": \"postman-demo@example.com\",\n    \"role\": \"patient\",\n    \"createdAt\": \"2026-01-15T09:00:00.000Z\",\n    \"updatedAt\": \"2026-01-15T09:00:00.000Z\"\n  }\n}",
               "originalRequest": {
                 "method": "GET",
                 "header": [
@@ -457,7 +446,7 @@
     },
     {
       "name": "02 — Reading lifecycle",
-      "description": "Requires login. Create saves the ID used by subsequent requests. Dates default once to today in APP_TIMEZONE. Do not use a pre-existing patient account for automated demonstrations.",
+      "description": "Requires login. Create saves the ID used by subsequent requests. Edit date/slot/value directly in each JSON body. Date examples are historical; they are never automatically changed. Do not use a pre-existing patient account for automated demonstrations.",
       "event": [
         {
           "listen": "prerequest",
@@ -485,10 +474,10 @@
               }
             ],
             "url": "{{BASE_URL}}/api/readings",
-            "description": "Creates one reading for reading_date/reading_slot and value 100. Expected 201; duplicate user/date/slot → 409. The four slots and unique constraint enforce max four per day. Dates may be historical, but not future. Clears old reading state before attempting creation. Never supply userId: ownership comes from JWT.\n\nExamples are illustrative, not captured production data.",
+            "description": "Creates one reading using the literal date/slot/value in this JSON body. Expected 201; duplicate user/date/slot → 409. The four slots and unique constraint enforce max four per day. Dates may be historical, but not future. Clears old reading state before attempting creation. Never supply userId: ownership comes from JWT.\n\nExamples are illustrative, not captured production data.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"date\": \"{{reading_date}}\",\n  \"slot\": \"{{reading_slot}}\",\n  \"value\": 100\n}",
+              "raw": "{\n  \"date\": \"2026-01-15\",\n  \"slot\": \"morning_fasting\",\n  \"value\": 100\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -514,7 +503,7 @@
                   "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
                   "if (pm.response.code === 201) { const reading = pm.response.json().reading; pm.collectionVariables.set(\"reading_id\", reading.id); pm.collectionVariables.set(\"created_reading_id\", reading.id); }",
                   "pm.test(\"Reading belongs to current user\", () => pm.expect(pm.response.json().reading.userId).to.eql(pm.collectionVariables.get(\"user_id\")));",
-                  "pm.test(\"Created value\", () => pm.expect(pm.response.json().reading.value).to.eql(100));"
+                  "pm.test(\"Created value\", () => pm.expect(pm.response.json().reading.value).to.eql(JSON.parse(pm.request.body.raw).value));"
                 ]
               }
             }
@@ -532,7 +521,7 @@
               ],
               "_postman_previewlanguage": "json",
               "cookie": [],
-              "body": "{\n  \"reading\": {\n    \"id\": \"20000000-0000-4000-8000-000000000001\",\n    \"userId\": \"10000000-0000-4000-8000-000000000001\",\n    \"date\": \"2026-11-17\",\n    \"slot\": \"morning_fasting\",\n    \"value\": 100,\n    \"createdAt\": \"2026-11-17T09:05:00.000Z\",\n    \"updatedAt\": \"2026-11-17T09:05:00.000Z\"\n  }\n}",
+              "body": "{\n  \"reading\": {\n    \"id\": \"20000000-0000-4000-8000-000000000001\",\n    \"userId\": \"10000000-0000-4000-8000-000000000001\",\n    \"date\": \"2026-01-15\",\n    \"slot\": \"morning_fasting\",\n    \"value\": 100,\n    \"createdAt\": \"2026-01-15T09:05:00.000Z\",\n    \"updatedAt\": \"2026-01-15T09:05:00.000Z\"\n  }\n}",
               "originalRequest": {
                 "method": "POST",
                 "header": [
@@ -546,10 +535,10 @@
                   }
                 ],
                 "url": "{{BASE_URL}}/api/readings",
-                "description": "Creates one reading for reading_date/reading_slot and value 100. Expected 201; duplicate user/date/slot → 409. The four slots and unique constraint enforce max four per day. Dates may be historical, but not future. Clears old reading state before attempting creation. Never supply userId: ownership comes from JWT.\n\nExamples are illustrative, not captured production data.",
+                "description": "Creates one reading using the literal date/slot/value in this JSON body. Expected 201; duplicate user/date/slot → 409. The four slots and unique constraint enforce max four per day. Dates may be historical, but not future. Clears old reading state before attempting creation. Never supply userId: ownership comes from JWT.\n\nExamples are illustrative, not captured production data.",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"date\": \"{{reading_date}}\",\n  \"slot\": \"{{reading_slot}}\",\n  \"value\": 100\n}",
+                  "raw": "{\n  \"date\": \"2026-01-15\",\n  \"slot\": \"morning_fasting\",\n  \"value\": 100\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -584,10 +573,10 @@
                   }
                 ],
                 "url": "{{BASE_URL}}/api/readings",
-                "description": "Creates one reading for reading_date/reading_slot and value 100. Expected 201; duplicate user/date/slot → 409. The four slots and unique constraint enforce max four per day. Dates may be historical, but not future. Clears old reading state before attempting creation. Never supply userId: ownership comes from JWT.\n\nExamples are illustrative, not captured production data.",
+                "description": "Creates one reading using the literal date/slot/value in this JSON body. Expected 201; duplicate user/date/slot → 409. The four slots and unique constraint enforce max four per day. Dates may be historical, but not future. Clears old reading state before attempting creation. Never supply userId: ownership comes from JWT.\n\nExamples are illustrative, not captured production data.",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"date\": \"{{reading_date}}\",\n  \"slot\": \"{{reading_slot}}\",\n  \"value\": 100\n}",
+                  "raw": "{\n  \"date\": \"2026-01-15\",\n  \"slot\": \"morning_fasting\",\n  \"value\": 100\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -645,7 +634,7 @@
               ],
               "_postman_previewlanguage": "json",
               "cookie": [],
-              "body": "{\n  \"reading\": {\n    \"id\": \"20000000-0000-4000-8000-000000000001\",\n    \"userId\": \"10000000-0000-4000-8000-000000000001\",\n    \"date\": \"2026-11-17\",\n    \"slot\": \"morning_fasting\",\n    \"value\": 100,\n    \"createdAt\": \"2026-11-17T09:05:00.000Z\",\n    \"updatedAt\": \"2026-11-17T09:05:00.000Z\"\n  }\n}",
+              "body": "{\n  \"reading\": {\n    \"id\": \"20000000-0000-4000-8000-000000000001\",\n    \"userId\": \"10000000-0000-4000-8000-000000000001\",\n    \"date\": \"2026-01-15\",\n    \"slot\": \"morning_fasting\",\n    \"value\": 100,\n    \"createdAt\": \"2026-01-15T09:05:00.000Z\",\n    \"updatedAt\": \"2026-01-15T09:05:00.000Z\"\n  }\n}",
               "originalRequest": {
                 "method": "GET",
                 "header": [
@@ -723,7 +712,7 @@
               ],
               "_postman_previewlanguage": "json",
               "cookie": [],
-              "body": "{\n  \"readings\": [\n    {\n      \"id\": \"20000000-0000-4000-8000-000000000001\",\n      \"userId\": \"10000000-0000-4000-8000-000000000001\",\n      \"date\": \"2026-11-17\",\n      \"slot\": \"morning_fasting\",\n      \"value\": 100,\n      \"createdAt\": \"2026-11-17T09:05:00.000Z\",\n      \"updatedAt\": \"2026-11-17T09:05:00.000Z\"\n    }\n  ]\n}",
+              "body": "{\n  \"readings\": [\n    {\n      \"id\": \"20000000-0000-4000-8000-000000000001\",\n      \"userId\": \"10000000-0000-4000-8000-000000000001\",\n      \"date\": \"2026-01-15\",\n      \"slot\": \"morning_fasting\",\n      \"value\": 100,\n      \"createdAt\": \"2026-01-15T09:05:00.000Z\",\n      \"updatedAt\": \"2026-01-15T09:05:00.000Z\"\n    }\n  ]\n}",
               "originalRequest": {
                 "method": "GET",
                 "header": [
@@ -773,8 +762,8 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{BASE_URL}}/api/readings?date={{reading_date}}",
-            "description": "Same list filtered by reading_date (YYYY-MM-DD). Invalid/future date → 400. Does not change selected_date used for reports.\n\nExamples are illustrative, not captured production data."
+            "url": "{{BASE_URL}}/api/readings?date=2026-01-15",
+            "description": "Edit the literal date query parameter (YYYY-MM-DD) directly. Invalid/future date → 400. Report dates are independent query parameters.\n\nExamples are illustrative, not captured production data."
           },
           "event": [
             {
@@ -783,7 +772,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
-                  "pm.test(\"Date filter\", () => { const rows = pm.response.json().readings; pm.expect(rows).to.be.an(\"array\"); rows.forEach(row => pm.expect(row.date).to.eql(pm.collectionVariables.get(\"reading_date\"))); });"
+                  "pm.test(\"Date filter\", () => { const date = new URL(pm.variables.replaceIn(pm.request.url.toString())).searchParams.get(\"date\"); const rows = pm.response.json().readings; pm.expect(rows).to.be.an(\"array\"); rows.forEach(row => pm.expect(row.date).to.eql(date)); });"
                 ]
               }
             }
@@ -801,7 +790,7 @@
               ],
               "_postman_previewlanguage": "json",
               "cookie": [],
-              "body": "{\n  \"readings\": [\n    {\n      \"id\": \"20000000-0000-4000-8000-000000000001\",\n      \"userId\": \"10000000-0000-4000-8000-000000000001\",\n      \"date\": \"2026-11-17\",\n      \"slot\": \"morning_fasting\",\n      \"value\": 100,\n      \"createdAt\": \"2026-11-17T09:05:00.000Z\",\n      \"updatedAt\": \"2026-11-17T09:05:00.000Z\"\n    }\n  ]\n}",
+              "body": "{\n  \"readings\": [\n    {\n      \"id\": \"20000000-0000-4000-8000-000000000001\",\n      \"userId\": \"10000000-0000-4000-8000-000000000001\",\n      \"date\": \"2026-01-15\",\n      \"slot\": \"morning_fasting\",\n      \"value\": 100,\n      \"createdAt\": \"2026-01-15T09:05:00.000Z\",\n      \"updatedAt\": \"2026-01-15T09:05:00.000Z\"\n    }\n  ]\n}",
               "originalRequest": {
                 "method": "GET",
                 "header": [
@@ -810,8 +799,8 @@
                     "value": "application/json"
                   }
                 ],
-                "url": "{{BASE_URL}}/api/readings?date={{reading_date}}",
-                "description": "Same list filtered by reading_date (YYYY-MM-DD). Invalid/future date → 400. Does not change selected_date used for reports.\n\nExamples are illustrative, not captured production data."
+                "url": "{{BASE_URL}}/api/readings?date=2026-01-15",
+                "description": "Edit the literal date query parameter (YYYY-MM-DD) directly. Invalid/future date → 400. Report dates are independent query parameters.\n\nExamples are illustrative, not captured production data."
               }
             }
           ]
@@ -858,7 +847,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
-                  "pm.test(\"Updated value\", () => pm.expect(pm.response.json().reading.value).to.eql(125));"
+                  "pm.test(\"Updated value\", () => pm.expect(pm.response.json().reading.value).to.eql(JSON.parse(pm.request.body.raw).value));"
                 ]
               }
             }
@@ -876,7 +865,7 @@
               ],
               "_postman_previewlanguage": "json",
               "cookie": [],
-              "body": "{\n  \"reading\": {\n    \"id\": \"20000000-0000-4000-8000-000000000001\",\n    \"userId\": \"10000000-0000-4000-8000-000000000001\",\n    \"date\": \"2026-11-17\",\n    \"slot\": \"morning_fasting\",\n    \"value\": 125,\n    \"createdAt\": \"2026-11-17T09:05:00.000Z\",\n    \"updatedAt\": \"2026-11-17T09:05:00.000Z\"\n  }\n}",
+              "body": "{\n  \"reading\": {\n    \"id\": \"20000000-0000-4000-8000-000000000001\",\n    \"userId\": \"10000000-0000-4000-8000-000000000001\",\n    \"date\": \"2026-01-15\",\n    \"slot\": \"morning_fasting\",\n    \"value\": 125,\n    \"createdAt\": \"2026-01-15T09:05:00.000Z\",\n    \"updatedAt\": \"2026-01-15T09:05:00.000Z\"\n  }\n}",
               "originalRequest": {
                 "method": "PATCH",
                 "header": [
@@ -908,7 +897,7 @@
     },
     {
       "name": "03 — Reports",
-      "description": "Read-only, authenticated, selected_date=YYYY-MM-DD. Defaults to reading_date. Statistics include only the current user. Numeric averages are rounded to one decimal but JSON may show 125 instead of 125.0.",
+      "description": "Read-only, authenticated. Edit the date=YYYY-MM-DD query parameter directly on each request. Statistics include only the current user. Numeric averages are rounded to one decimal but JSON may show 125 instead of 125.0.",
       "event": [
         {
           "listen": "prerequest",
@@ -931,8 +920,8 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{BASE_URL}}/api/reports/daily?date={{selected_date}}",
-            "description": "For the selected date only. Includes reading rows in slot order plus highest, lowest, average, count. Empty: count=0, null statistics, friendly message, readings=[].\n\nExamples are illustrative, not captured production data."
+            "url": "{{BASE_URL}}/api/reports/daily?date=2026-01-15",
+            "description": "For the selected date query parameter only. Edit it directly. Includes reading rows in slot order plus highest, lowest, average, count. Empty: count=0, null statistics, friendly message, readings=[].\n\nExamples are illustrative, not captured production data."
           },
           "event": [
             {
@@ -942,7 +931,7 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
                   "const report = pm.response.json();",
-                  "pm.test(\"Report structure\", () => { pm.expect(report.count).to.be.a(\"number\"); pm.expect(report.selectedDate).to.eql(pm.collectionVariables.get(\"selected_date\")); });",
+                  "pm.test(\"Report structure\", () => { pm.expect(report.count).to.be.a(\"number\"); pm.expect(report.selectedDate).to.eql(new URL(pm.variables.replaceIn(pm.request.url.toString())).searchParams.get(\"date\")); });",
                   "pm.test(\"Statistics or friendly empty state\", () => {",
                   "  if (report.count === 0) {",
                   "    [\"highest\", \"lowest\", \"average\"].forEach(key => pm.expect(report[key]).to.eql(null));",
@@ -971,7 +960,7 @@
               ],
               "_postman_previewlanguage": "json",
               "cookie": [],
-              "body": "{\n  \"type\": \"daily\",\n  \"selectedDate\": \"2026-11-17\",\n  \"from\": \"2026-11-17\",\n  \"to\": \"2026-11-17\",\n  \"count\": 1,\n  \"highest\": 100,\n  \"lowest\": 100,\n  \"average\": 100,\n  \"message\": null,\n  \"readings\": [\n    {\n      \"id\": \"20000000-0000-4000-8000-000000000001\",\n      \"userId\": \"10000000-0000-4000-8000-000000000001\",\n      \"date\": \"2026-11-17\",\n      \"slot\": \"morning_fasting\",\n      \"value\": 100,\n      \"createdAt\": \"2026-11-17T09:05:00.000Z\",\n      \"updatedAt\": \"2026-11-17T09:05:00.000Z\"\n    }\n  ]\n}",
+              "body": "{\n  \"type\": \"daily\",\n  \"selectedDate\": \"2026-01-15\",\n  \"from\": \"2026-01-15\",\n  \"to\": \"2026-01-15\",\n  \"count\": 1,\n  \"highest\": 100,\n  \"lowest\": 100,\n  \"average\": 100,\n  \"message\": null,\n  \"readings\": [\n    {\n      \"id\": \"20000000-0000-4000-8000-000000000001\",\n      \"userId\": \"10000000-0000-4000-8000-000000000001\",\n      \"date\": \"2026-01-15\",\n      \"slot\": \"morning_fasting\",\n      \"value\": 100,\n      \"createdAt\": \"2026-01-15T09:05:00.000Z\",\n      \"updatedAt\": \"2026-01-15T09:05:00.000Z\"\n    }\n  ]\n}",
               "originalRequest": {
                 "method": "GET",
                 "header": [
@@ -980,8 +969,8 @@
                     "value": "application/json"
                   }
                 ],
-                "url": "{{BASE_URL}}/api/reports/daily?date={{selected_date}}",
-                "description": "For the selected date only. Includes reading rows in slot order plus highest, lowest, average, count. Empty: count=0, null statistics, friendly message, readings=[].\n\nExamples are illustrative, not captured production data."
+                "url": "{{BASE_URL}}/api/reports/daily?date=2026-01-15",
+                "description": "For the selected date query parameter only. Edit it directly. Includes reading rows in slot order plus highest, lowest, average, count. Empty: count=0, null statistics, friendly message, readings=[].\n\nExamples are illustrative, not captured production data."
               }
             },
             {
@@ -996,7 +985,7 @@
               ],
               "_postman_previewlanguage": "json",
               "cookie": [],
-              "body": "{\n  \"type\": \"daily\",\n  \"selectedDate\": \"2026-11-17\",\n  \"from\": \"2026-11-17\",\n  \"to\": \"2026-11-17\",\n  \"count\": 0,\n  \"highest\": null,\n  \"lowest\": null,\n  \"average\": null,\n  \"message\": \"No readings recorded for this period yet.\",\n  \"readings\": []\n}",
+              "body": "{\n  \"type\": \"daily\",\n  \"selectedDate\": \"2026-01-15\",\n  \"from\": \"2026-01-15\",\n  \"to\": \"2026-01-15\",\n  \"count\": 0,\n  \"highest\": null,\n  \"lowest\": null,\n  \"average\": null,\n  \"message\": \"No readings recorded for this period yet.\",\n  \"readings\": []\n}",
               "originalRequest": {
                 "method": "GET",
                 "header": [
@@ -1005,8 +994,8 @@
                     "value": "application/json"
                   }
                 ],
-                "url": "{{BASE_URL}}/api/reports/daily?date={{selected_date}}",
-                "description": "For the selected date only. Includes reading rows in slot order plus highest, lowest, average, count. Empty: count=0, null statistics, friendly message, readings=[].\n\nExamples are illustrative, not captured production data."
+                "url": "{{BASE_URL}}/api/reports/daily?date=2026-01-15",
+                "description": "For the selected date query parameter only. Edit it directly. Includes reading rows in slot order plus highest, lowest, average, count. Empty: count=0, null statistics, friendly message, readings=[].\n\nExamples are illustrative, not captured production data."
               }
             }
           ]
@@ -1021,8 +1010,8 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{BASE_URL}}/api/reports/month-to-date?date={{selected_date}}",
-            "description": "From the first day of the selected date’s month through selected_date, inclusive. Not necessarily the current real-world month. Does not include a readings array.\n\nExamples are illustrative, not captured production data."
+            "url": "{{BASE_URL}}/api/reports/month-to-date?date=2026-01-15",
+            "description": "From the first day of the selected date’s month through the date query parameter, inclusive. Edit the query directly. Not necessarily the current real-world month. Does not include a readings array.\n\nExamples are illustrative, not captured production data."
           },
           "event": [
             {
@@ -1032,7 +1021,7 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
                   "const report = pm.response.json();",
-                  "pm.test(\"Report structure\", () => { pm.expect(report.count).to.be.a(\"number\"); pm.expect(report.selectedDate).to.eql(pm.collectionVariables.get(\"selected_date\")); });",
+                  "pm.test(\"Report structure\", () => { pm.expect(report.count).to.be.a(\"number\"); pm.expect(report.selectedDate).to.eql(new URL(pm.variables.replaceIn(pm.request.url.toString())).searchParams.get(\"date\")); });",
                   "pm.test(\"Statistics or friendly empty state\", () => {",
                   "  if (report.count === 0) {",
                   "    [\"highest\", \"lowest\", \"average\"].forEach(key => pm.expect(report[key]).to.eql(null));",
@@ -1061,7 +1050,7 @@
               ],
               "_postman_previewlanguage": "json",
               "cookie": [],
-              "body": "{\n  \"type\": \"month-to-date\",\n  \"selectedDate\": \"2026-11-17\",\n  \"from\": \"2026-11-01\",\n  \"to\": \"2026-11-17\",\n  \"count\": 1,\n  \"highest\": 100,\n  \"lowest\": 100,\n  \"average\": 100,\n  \"message\": null\n}",
+              "body": "{\n  \"type\": \"month-to-date\",\n  \"selectedDate\": \"2026-01-15\",\n  \"from\": \"2026-01-01\",\n  \"to\": \"2026-01-15\",\n  \"count\": 1,\n  \"highest\": 100,\n  \"lowest\": 100,\n  \"average\": 100,\n  \"message\": null\n}",
               "originalRequest": {
                 "method": "GET",
                 "header": [
@@ -1070,8 +1059,8 @@
                     "value": "application/json"
                   }
                 ],
-                "url": "{{BASE_URL}}/api/reports/month-to-date?date={{selected_date}}",
-                "description": "From the first day of the selected date’s month through selected_date, inclusive. Not necessarily the current real-world month. Does not include a readings array.\n\nExamples are illustrative, not captured production data."
+                "url": "{{BASE_URL}}/api/reports/month-to-date?date=2026-01-15",
+                "description": "From the first day of the selected date’s month through the date query parameter, inclusive. Edit the query directly. Not necessarily the current real-world month. Does not include a readings array.\n\nExamples are illustrative, not captured production data."
               }
             }
           ]
@@ -1086,8 +1075,8 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{BASE_URL}}/api/reports/monthly?date={{selected_date}}",
-            "description": "The full calendar month before selected_date’s month—not a rolling 30 days. For 2026-11-17, range is 2026-10-01 through 2026-10-31. Handles leap years and year boundaries. Does not include reading rows.\n\nExamples are illustrative, not captured production data."
+            "url": "{{BASE_URL}}/api/reports/monthly?date=2026-01-15",
+            "description": "The full calendar month before the date query parameter’s month—not a rolling 30 days. For 2026-01-15, range is 2025-12-01 through 2025-12-31. Edit the query directly. Handles leap years and year boundaries. Does not include reading rows.\n\nExamples are illustrative, not captured production data."
           },
           "event": [
             {
@@ -1097,7 +1086,7 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
                   "const report = pm.response.json();",
-                  "pm.test(\"Report structure\", () => { pm.expect(report.count).to.be.a(\"number\"); pm.expect(report.selectedDate).to.eql(pm.collectionVariables.get(\"selected_date\")); });",
+                  "pm.test(\"Report structure\", () => { pm.expect(report.count).to.be.a(\"number\"); pm.expect(report.selectedDate).to.eql(new URL(pm.variables.replaceIn(pm.request.url.toString())).searchParams.get(\"date\")); });",
                   "pm.test(\"Statistics or friendly empty state\", () => {",
                   "  if (report.count === 0) {",
                   "    [\"highest\", \"lowest\", \"average\"].forEach(key => pm.expect(report[key]).to.eql(null));",
@@ -1126,7 +1115,7 @@
               ],
               "_postman_previewlanguage": "json",
               "cookie": [],
-              "body": "{\n  \"type\": \"monthly\",\n  \"selectedDate\": \"2026-11-17\",\n  \"from\": \"2026-10-01\",\n  \"to\": \"2026-10-31\",\n  \"count\": 0,\n  \"highest\": null,\n  \"lowest\": null,\n  \"average\": null,\n  \"message\": \"No readings recorded for this period yet.\"\n}",
+              "body": "{\n  \"type\": \"monthly\",\n  \"selectedDate\": \"2026-01-15\",\n  \"from\": \"2025-12-01\",\n  \"to\": \"2025-12-31\",\n  \"count\": 0,\n  \"highest\": null,\n  \"lowest\": null,\n  \"average\": null,\n  \"message\": \"No readings recorded for this period yet.\"\n}",
               "originalRequest": {
                 "method": "GET",
                 "header": [
@@ -1135,8 +1124,8 @@
                     "value": "application/json"
                   }
                 ],
-                "url": "{{BASE_URL}}/api/reports/monthly?date={{selected_date}}",
-                "description": "The full calendar month before selected_date’s month—not a rolling 30 days. For 2026-11-17, range is 2026-10-01 through 2026-10-31. Handles leap years and year boundaries. Does not include reading rows.\n\nExamples are illustrative, not captured production data."
+                "url": "{{BASE_URL}}/api/reports/monthly?date=2026-01-15",
+                "description": "The full calendar month before the date query parameter’s month—not a rolling 30 days. For 2026-01-15, range is 2025-12-01 through 2025-12-31. Edit the query directly. Handles leap years and year boundaries. Does not include reading rows.\n\nExamples are illustrative, not captured production data."
               }
             }
           ]
@@ -1221,10 +1210,10 @@
               }
             ],
             "url": "{{BASE_URL}}/api/readings",
-            "description": "Run after creating the reading, before deleting it. Reuses exactly the same date and slot. Expected 409; does not overwrite the original value.\n\nExamples are illustrative, not captured production data.",
+            "description": "Run after creating the reading, before deleting it. Keep the literal date and slot in this body identical to Create if you edit those examples. Expected 409; does not overwrite the original value.\n\nExamples are illustrative, not captured production data.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"date\": \"{{reading_date}}\",\n  \"slot\": \"{{reading_slot}}\",\n  \"value\": 100\n}",
+              "raw": "{\n  \"date\": \"2026-01-15\",\n  \"slot\": \"morning_fasting\",\n  \"value\": 100\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1273,7 +1262,7 @@
             "description": "601 is outside 40–600 and must be rejected before database insertion. Expected 400.\n\nExamples are illustrative, not captured production data.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"date\": \"{{reading_date}}\",\n  \"slot\": \"{{reading_slot}}\",\n  \"value\": 601\n}",
+              "raw": "{\n  \"date\": \"2026-01-15\",\n  \"slot\": \"morning_fasting\",\n  \"value\": 601\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1321,7 +1310,7 @@
             "description": "Even with a valid value, a supplied date is forbidden. Expected 400. No reading fields should change.\n\nExamples are illustrative, not captured production data.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"value\": 150,\n  \"date\": \"{{reading_date}}\"\n}",
+              "raw": "{\n  \"value\": 150,\n  \"date\": \"2026-01-15\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1530,26 +1519,6 @@
   ],
   "variable": [
     {
-      "key": "name",
-      "value": "Postman Demo Patient",
-      "type": "string"
-    },
-    {
-      "key": "role",
-      "value": "patient",
-      "type": "string"
-    },
-    {
-      "key": "email",
-      "value": "",
-      "type": "string"
-    },
-    {
-      "key": "password",
-      "value": "",
-      "type": "string"
-    },
-    {
       "key": "access_token",
       "value": "",
       "type": "string"
@@ -1560,22 +1529,7 @@
       "type": "string"
     },
     {
-      "key": "reading_date",
-      "value": "",
-      "type": "string"
-    },
-    {
-      "key": "reading_slot",
-      "value": "morning_fasting",
-      "type": "string"
-    },
-    {
       "key": "reading_id",
-      "value": "",
-      "type": "string"
-    },
-    {
-      "key": "selected_date",
       "value": "",
       "type": "string"
     },

@@ -65,12 +65,12 @@ function request(name, method, endpoint, description, options = {}) {
 const user = {
   id: '10000000-0000-4000-8000-000000000001',
   name: 'Postman Demo Patient', email: 'postman-demo@example.com', role: 'patient',
-  createdAt: '2026-11-17T09:00:00.000Z', updatedAt: '2026-11-17T09:00:00.000Z',
+  createdAt: '2026-01-15T09:00:00.000Z', updatedAt: '2026-01-15T09:00:00.000Z',
 };
 const reading = {
   id: '20000000-0000-4000-8000-000000000001', userId: user.id,
-  date: '2026-11-17', slot: 'morning_fasting', value: 100,
-  createdAt: '2026-11-17T09:05:00.000Z', updatedAt: '2026-11-17T09:05:00.000Z',
+  date: '2026-01-15', slot: 'morning_fasting', value: 100,
+  createdAt: '2026-01-15T09:05:00.000Z', updatedAt: '2026-01-15T09:05:00.000Z',
 };
 const sampleReport = {
   type: 'daily', selectedDate: reading.date, from: reading.date, to: reading.date,
@@ -78,7 +78,7 @@ const sampleReport = {
 };
 const reportTests = [
   'const report = pm.response.json();',
-  'pm.test("Report structure", () => { pm.expect(report.count).to.be.a("number"); pm.expect(report.selectedDate).to.eql(pm.collectionVariables.get("selected_date")); });',
+  'pm.test("Report structure", () => { pm.expect(report.count).to.be.a("number"); pm.expect(report.selectedDate).to.eql(new URL(pm.variables.replaceIn(pm.request.url.toString())).searchParams.get("date")); });',
   'pm.test("Statistics or friendly empty state", () => {',
   '  if (report.count === 0) {',
   '    ["highest", "lowest", "average"].forEach(key => pm.expect(report[key]).to.eql(null));',
@@ -90,7 +90,8 @@ const reportTests = [
   '  }',
   '});',
 ];
-const readingBody = { date: '{{reading_date}}', slot: '{{reading_slot}}', value: 100 };
+const readingBody = { date: '2026-01-15', slot: 'morning_fasting', value: 100 };
+const demoCredentials = { email: 'postman-demo@example.com', password: 'Demo-password-123!' };
 
 const collection = {
   info: {
@@ -100,20 +101,21 @@ const collection = {
     description: [
       '# Sweety API',
       'Import the companion **Sweety — Render** environment and select it before sending requests.',
-      'The environment contains only `BASE_URL` and `APP_TIMEZONE`. Every URL uses `BASE_URL`, initially `https://sweety-qj4d.onrender.com` (without `/api` or a trailing slash). Credentials, token, IDs and dates are collection variables, not environment settings.',
+      'The environment contains only `BASE_URL` and `APP_TIMEZONE`. Every URL uses `BASE_URL`, initially `https://sweety-qj4d.onrender.com` (without `/api` or a trailing slash). All payload fields use direct, editable JSON values. Only response-captured tokens/IDs and the server-switch guard use collection variables.',
       '## Cold starts',
       'Set Postman Settings → General → Request timeout in ms to **180000**. The first health request may take a minute or more. This timeout is a client setting, not an environment variable a collection can enforce.',
       '## Run order and side effects',
       'Run folders 00 → 05, in order, for a complete demonstration. This creates a synthetic account and one reading, edits that reading, then deletes only the reading created by this collection. The account remains because no user-delete API exists. Do not use real patient data.',
       'The health folder is read-only. Running the entire collection against Render WILL write to the Supabase-backed service. The collection does not auto-run on import.',
-      'On first registration, blank email/password variables are filled with fresh demo values locally. They are reused for login. To run again with a new account, clear `email` and `password`; sending registration again with the same email correctly returns 409.',
-      'Login saves `access_token` and `user_id` as collection variables. Creation saves `reading_id` and a cleanup guard. A failed login/create clears stale state rather than reusing another account or reading. Switching BASE_URL automatically clears collection credentials, token, IDs and dates before sending.',
+      'Before a full run, edit the Register JSON body with a unique synthetic email and a demo password, and enter the same email/password directly in the Login JSON body. Nothing generates or rewrites credentials. Reusing a registered email correctly returns 409. For an existing demo account, skip Register and start with Login.',
+      'Reading bodies and date query parameters have literal examples. Edit them directly; keep the duplicate-reading request aligned with Create and choose the report/filter dates you want. APP_TIMEZONE documents the server timezone; scripts do not rewrite dates.',
+      'Login saves `access_token` and `user_id` as collection variables. Creation saves `reading_id` and a cleanup guard. A failed login/create clears stale state rather than reusing another account or reading. Switching BASE_URL automatically clears captured tokens/IDs before sending.',
       '## API rules',
       'Roles: `patient` or `doctor`; both access only their own data. Passwords: Argon2id, 8–128 Unicode code points. JWT lifetime: server-configured, normally 7 days.',
       'Slots: `morning_fasting`, `after_breakfast`, `after_lunch`, `after_dinner`. Values: integer 40–600 mg/dl, maximum one reading per user/date/slot. Past dates are allowed; future dates are not.',
       'PATCH accepts only `{ "value": 125 }`. Date and slot are immutable. Reports: daily, month-to-date through the selected date, and the entire previous calendar month relative to that date.',
       '## Security',
-      'No API key is required. Protected routes inherit Bearer `{{access_token}}`. Use synthetic demo credentials only for saved collection state. Collection variables may sync with Postman; never publish populated collections or share console Authorization headers.',
+      'No API key is required. Protected routes inherit Bearer `{{access_token}}`. Use synthetic demo credentials only. Request bodies and collection variables may sync with Postman; never publish populated collections or share console Authorization headers.',
       'See the companion README for variables, sample responses, expected errors, rate limits, and a Newman command.',
     ].join('\n\n'),
   },
@@ -124,15 +126,8 @@ const collection = {
     '  pm.execution.skipRequest(); throw new Error("Select the Sweety environment. BASE_URL must be an HTTP(S) origin, without /api or a trailing slash.");',
     '}',
     'if (pm.collectionVariables.get("active_base_url") !== base) {',
-    '  ["email", "password", "access_token", "user_id", "reading_id", "created_reading_id", "deleted_reading_id", "reading_date", "selected_date"].forEach(key => pm.collectionVariables.set(key, ""));',
+    '  ["access_token", "user_id", "reading_id", "created_reading_id", "deleted_reading_id"].forEach(key => pm.collectionVariables.set(key, ""));',
     '  pm.collectionVariables.set("active_base_url", base);',
-    '}',
-    'if (!pm.collectionVariables.get("reading_date") || !pm.collectionVariables.get("selected_date")) {',
-    '  const parts = new Intl.DateTimeFormat("en-US", { timeZone: pm.environment.get("APP_TIMEZONE") || "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());',
-    '  const part = type => parts.find(item => item.type === type).value;',
-    '  const today = `${part("year")}-${part("month")}-${part("day")}`;',
-    '  if (!pm.collectionVariables.get("reading_date")) pm.collectionVariables.set("reading_date", today);',
-    '  if (!pm.collectionVariables.get("selected_date")) pm.collectionVariables.set("selected_date", pm.collectionVariables.get("reading_date"));',
     '}',
   ])],
   item: [
@@ -148,34 +143,31 @@ const collection = {
     },
     {
       name: '01 — Register, log in, and inspect user',
-      description: 'Registration creates a real synthetic account in the selected service. Login saves the token automatically. Set role to doctor to try that role; it does not enable cross-user access.',
+      description: 'Edit credentials directly in both Register and Login JSON bodies so they match. Registration creates a real synthetic account. Login saves the token automatically. Set role to doctor directly in Register to try that role; it does not enable cross-user access.',
       item: [
         request('Register demo user', 'POST', '/auth/register',
-          'Creates an account; does not log in automatically. Expected 201. Names/emails are trimmed; email is lowercased. Existing email → 409. Invalid fields/role/password → 400. Blank email/password are generated locally on first send. Clear both to create a fresh account on a repeat run. No accounts are ever deleted automatically.', {
+          'Creates an account; does not log in automatically. Expected 201. Edit the literal JSON fields directly. Choose a unique synthetic email before registration and copy that email/password into the Login body. Names/emails are trimmed; email is lowercased. Existing email → 409. Invalid fields/role/password → 400. No credentials are generated or rewritten. No accounts are ever deleted automatically.', {
             noauth: true,
             before: [
               '["access_token", "user_id", "reading_id", "created_reading_id", "deleted_reading_id"].forEach(key => pm.collectionVariables.set(key, ""));',
-              'if (!pm.collectionVariables.get("email")) pm.collectionVariables.set("email", "sweety-postman-" + pm.variables.replaceIn("{{$guid}}") + "@example.com");',
-              'if (!pm.collectionVariables.get("password")) pm.collectionVariables.set("password", "Demo-" + pm.variables.replaceIn("{{$guid}}") + "-aA1!");',
             ],
-            body: { name: '{{name}}', email: '{{email}}', password: '{{password}}', role: '{{role}}' },
+            body: { name: 'Postman Demo Patient', ...demoCredentials, role: 'patient' },
             code: 201,
             tests: [
               'if (pm.response.code === 201) { const user = pm.response.json().user; pm.collectionVariables.set("user_id", user.id); }',
               'const user = pm.response.json().user;',
-              'pm.test("Registered selected role", () => pm.expect(user.role).to.eql(pm.collectionVariables.get("role")));',
+              'pm.test("Registered selected role", () => pm.expect(user.role).to.eql(JSON.parse(pm.request.body.raw).role));',
               noHash('user'),
             ],
             examples: [example('Registered patient', 201, { user }), example('Duplicate email', 409, { message: 'An account with this email already exists.' })],
           }),
         request('Log in and save access token', 'POST', '/auth/login',
-          'Uses collection email/password. Expected 200. Saves access_token and user_id for all protected requests. Clears any previous token and reading IDs before login, preventing reuse after a failed login or account switch. Wrong password, unknown account, unsupported legacy hash format → 401. Invalid password length/email → 400. Old bcrypt accounts require recovery/recreation; they cannot be converted automatically.', {
+          'Edit email/password directly in this JSON body to match the registered demo account. Expected 200. Saves access_token and user_id for all protected requests. Clears any previous token and reading IDs before login, preventing reuse after a failed login or account switch. Wrong password, unknown account, unsupported legacy hash format → 401. Invalid password length/email → 400. Old bcrypt accounts require recovery/recreation; they cannot be converted automatically.', {
             noauth: true,
             before: [
               '["access_token", "user_id", "reading_id", "created_reading_id", "deleted_reading_id"].forEach(key => pm.collectionVariables.set(key, ""));',
-              ...requireVariables('email', 'password'),
             ],
-            body: { email: '{{email}}', password: '{{password}}' },
+            body: demoCredentials,
             tests: [
               'if (pm.response.code === 200) { const data = pm.response.json(); pm.collectionVariables.set("access_token", data.token); pm.collectionVariables.set("user_id", data.user.id); }',
               'const data = pm.response.json();',
@@ -193,17 +185,17 @@ const collection = {
     },
     {
       name: '02 — Reading lifecycle',
-      description: 'Requires login. Create saves the ID used by subsequent requests. Dates default once to today in APP_TIMEZONE. Do not use a pre-existing patient account for automated demonstrations.',
+      description: 'Requires login. Create saves the ID used by subsequent requests. Edit date/slot/value directly in each JSON body. Date examples are historical; they are never automatically changed. Do not use a pre-existing patient account for automated demonstrations.',
       event: [event('prerequest', bearerGuard)],
       item: [
         request('Create reading and save its ID', 'POST', '/readings',
-          'Creates one reading for reading_date/reading_slot and value 100. Expected 201; duplicate user/date/slot → 409. The four slots and unique constraint enforce max four per day. Dates may be historical, but not future. Clears old reading state before attempting creation. Never supply userId: ownership comes from JWT.', {
+          'Creates one reading using the literal date/slot/value in this JSON body. Expected 201; duplicate user/date/slot → 409. The four slots and unique constraint enforce max four per day. Dates may be historical, but not future. Clears old reading state before attempting creation. Never supply userId: ownership comes from JWT.', {
             before: ['["reading_id", "created_reading_id", "deleted_reading_id"].forEach(key => pm.collectionVariables.unset(key));'],
             body: readingBody, code: 201,
             tests: [
               'if (pm.response.code === 201) { const reading = pm.response.json().reading; pm.collectionVariables.set("reading_id", reading.id); pm.collectionVariables.set("created_reading_id", reading.id); }',
               'pm.test("Reading belongs to current user", () => pm.expect(pm.response.json().reading.userId).to.eql(pm.collectionVariables.get("user_id")));',
-              'pm.test("Created value", () => pm.expect(pm.response.json().reading.value).to.eql(100));',
+              'pm.test("Created value", () => pm.expect(pm.response.json().reading.value).to.eql(JSON.parse(pm.request.body.raw).value));',
             ],
             examples: [example('Created reading', 201, { reading }), example('Duplicate slot', 409, { message: 'You already have an morning fasting reading for this date. You can add only 4 readings per day.' })],
           }),
@@ -216,33 +208,33 @@ const collection = {
           tests: ['pm.test("Own readings only", () => { const rows = pm.response.json().readings; pm.expect(rows).to.be.an("array"); rows.forEach(row => pm.expect(row.userId).to.eql(pm.collectionVariables.get("user_id"))); });'],
           examples: [example('Readings', 200, { readings: [reading] }), example('Empty list', 200, { readings: [] })],
         }),
-        request('List own readings for date', 'GET', '/readings?date={{reading_date}}', 'Same list filtered by reading_date (YYYY-MM-DD). Invalid/future date → 400. Does not change selected_date used for reports.', {
-          tests: ['pm.test("Date filter", () => { const rows = pm.response.json().readings; pm.expect(rows).to.be.an("array"); rows.forEach(row => pm.expect(row.date).to.eql(pm.collectionVariables.get("reading_date"))); });'],
+        request('List own readings for date', 'GET', '/readings?date=2026-01-15', 'Edit the literal date query parameter (YYYY-MM-DD) directly. Invalid/future date → 400. Report dates are independent query parameters.', {
+          tests: ['pm.test("Date filter", () => { const date = new URL(pm.variables.replaceIn(pm.request.url.toString())).searchParams.get("date"); const rows = pm.response.json().readings; pm.expect(rows).to.be.an("array"); rows.forEach(row => pm.expect(row.date).to.eql(date)); });'],
           examples: [example('Filtered readings', 200, { readings: [reading] })],
         }),
         request('Update glucose value only', 'PATCH', '/readings/{{reading_id}}', 'Changes value to 125 mg/dl. value is required, integer 40–600. Empty body, null/string/decimal/out-of-range value, date, slot or other unknown fields → 400. Correcting date/slot requires delete and recreate.', {
           before: readingGuard, body: { value: 125 },
-          tests: ['pm.test("Updated value", () => pm.expect(pm.response.json().reading.value).to.eql(125));'],
+          tests: ['pm.test("Updated value", () => pm.expect(pm.response.json().reading.value).to.eql(JSON.parse(pm.request.body.raw).value));'],
           examples: [example('Updated reading', 200, { reading: { ...reading, value: 125 } })],
         }),
       ],
     },
     {
       name: '03 — Reports',
-      description: 'Read-only, authenticated, selected_date=YYYY-MM-DD. Defaults to reading_date. Statistics include only the current user. Numeric averages are rounded to one decimal but JSON may show 125 instead of 125.0.',
+      description: 'Read-only, authenticated. Edit the date=YYYY-MM-DD query parameter directly on each request. Statistics include only the current user. Numeric averages are rounded to one decimal but JSON may show 125 instead of 125.0.',
       event: [event('prerequest', bearerGuard)],
       item: [
-        request('Daily report', 'GET', '/reports/daily?date={{selected_date}}', 'For the selected date only. Includes reading rows in slot order plus highest, lowest, average, count. Empty: count=0, null statistics, friendly message, readings=[].', {
+        request('Daily report', 'GET', '/reports/daily?date=2026-01-15', 'For the selected date query parameter only. Edit it directly. Includes reading rows in slot order plus highest, lowest, average, count. Empty: count=0, null statistics, friendly message, readings=[].', {
           tests: [...reportTests, 'pm.test("Daily readings included", () => { const data = pm.response.json(); pm.expect(data.readings).to.be.an("array"); pm.expect(data.readings.length).to.eql(data.count); });'],
           examples: [example('Daily report', 200, sampleReport), example('Empty daily report', 200, { ...sampleReport, count: 0, highest: null, lowest: null, average: null, message: 'No readings recorded for this period yet.', readings: [] })],
         }),
-        request('Month-to-date report', 'GET', '/reports/month-to-date?date={{selected_date}}', 'From the first day of the selected date’s month through selected_date, inclusive. Not necessarily the current real-world month. Does not include a readings array.', {
+        request('Month-to-date report', 'GET', '/reports/month-to-date?date=2026-01-15', 'From the first day of the selected date’s month through the date query parameter, inclusive. Edit the query directly. Not necessarily the current real-world month. Does not include a readings array.', {
           tests: [...reportTests, 'pm.test("Month-to-date boundaries", () => { const data = pm.response.json(); pm.expect(data.from).to.eql(data.selectedDate.slice(0, 7) + "-01"); pm.expect(data.to).to.eql(data.selectedDate); });'],
-          examples: [example('Month-to-date example', 200, { type: 'month-to-date', selectedDate: reading.date, from: '2026-11-01', to: reading.date, count: 1, highest: 100, lowest: 100, average: 100, message: null })],
+          examples: [example('Month-to-date example', 200, { type: 'month-to-date', selectedDate: reading.date, from: '2026-01-01', to: reading.date, count: 1, highest: 100, lowest: 100, average: 100, message: null })],
         }),
-        request('Entire previous calendar month report', 'GET', '/reports/monthly?date={{selected_date}}', 'The full calendar month before selected_date’s month—not a rolling 30 days. For 2026-11-17, range is 2026-10-01 through 2026-10-31. Handles leap years and year boundaries. Does not include reading rows.', {
+        request('Entire previous calendar month report', 'GET', '/reports/monthly?date=2026-01-15', 'The full calendar month before the date query parameter’s month—not a rolling 30 days. For 2026-01-15, range is 2025-12-01 through 2025-12-31. Edit the query directly. Handles leap years and year boundaries. Does not include reading rows.', {
           tests: [...reportTests, 'pm.test("Previous calendar month boundaries", () => { const data = pm.response.json(); const first = new Date(data.selectedDate.slice(0, 7) + "-01T00:00:00Z"); const last = new Date(first.getTime() - 86400000).toISOString().slice(0, 10); pm.expect(data.to).to.eql(last); pm.expect(data.from).to.eql(last.slice(0, 7) + "-01"); });'],
-          examples: [example('Empty previous month', 200, { type: 'monthly', selectedDate: reading.date, from: '2026-10-01', to: '2026-10-31', count: 0, highest: null, lowest: null, average: null, message: 'No readings recorded for this period yet.' })],
+          examples: [example('Empty previous month', 200, { type: 'monthly', selectedDate: reading.date, from: '2025-12-01', to: '2025-12-31', count: 0, highest: null, lowest: null, average: null, message: 'No readings recorded for this period yet.' })],
         }),
       ],
     },
@@ -254,14 +246,14 @@ const collection = {
           noauth: true, code: 401, tests: [errorShape],
           examples: [example('Unauthenticated', 401, { message: 'Authorization is required for request on GET /api/readings' })],
         }),
-        request('Reject duplicate date and slot', 'POST', '/readings', 'Run after creating the reading, before deleting it. Reuses exactly the same date and slot. Expected 409; does not overwrite the original value.', {
+        request('Reject duplicate date and slot', 'POST', '/readings', 'Run after creating the reading, before deleting it. Keep the literal date and slot in this body identical to Create if you edit those examples. Expected 409; does not overwrite the original value.', {
           before: [...bearerGuard, ...readingGuard], body: readingBody, code: 409, tests: [errorShape],
         }),
         request('Reject invalid glucose value', 'POST', '/readings', '601 is outside 40–600 and must be rejected before database insertion. Expected 400.', {
           before: bearerGuard, body: { ...readingBody, value: 601 }, code: 400, tests: [errorShape],
         }),
         request('Reject date change on update', 'PATCH', '/readings/{{reading_id}}', 'Even with a valid value, a supplied date is forbidden. Expected 400. No reading fields should change.', {
-          before: [...bearerGuard, ...readingGuard], body: { value: 150, date: '{{reading_date}}' }, code: 400, tests: [errorShape],
+          before: [...bearerGuard, ...readingGuard], body: { value: 150, date: '2026-01-15' }, code: 400, tests: [errorShape],
         }),
         request('Reject invalid report date', 'GET', '/reports/daily?date=not-a-date', 'Calendar validation rejects this query. Missing or future dates are also rejected. Expected 400.', {
           before: bearerGuard, code: 400, tests: [errorShape],
@@ -293,16 +285,9 @@ const collection = {
 };
 
 collection.variable = [
-  ['name', 'Postman Demo Patient'],
-  ['role', 'patient'],
-  ['email', ''],
-  ['password', ''],
   ['access_token', ''],
   ['user_id', ''],
-  ['reading_date', ''],
-  ['reading_slot', 'morning_fasting'],
   ['reading_id', ''],
-  ['selected_date', ''],
   ['created_reading_id', ''],
   ['deleted_reading_id', ''],
   ['active_base_url', ''],

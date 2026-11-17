@@ -10,7 +10,10 @@
    Postman's global timeout; importing it alone does not set this.
 4. Send **00 → Health / warm up Render** first. Expect HTTP 200:
    `{"status":"ok","service":"Sweety API"}`.
-5. For a complete demonstration, run folders **00 through 05 in order**, once.
+5. Before running the full collection, edit the direct JSON bodies in **Register**
+   and **Login** to use the same unique synthetic email and demo password.
+   The bundled credentials are public examples, not a pre-created account.
+6. For a complete demonstration, run folders **00 through 05 in order**, once.
    Use one iteration. All expected-error requests have assertions for their
    expected 4xx status; those are successful tests, not collection failures.
 
@@ -33,8 +36,8 @@ APP_TIMEZONE = Asia/Kolkata
 
 Do not append `/api` or a trailing slash. For local testing, duplicate the
 environment and change `BASE_URL` to `http://localhost:3000`.
-Changing the origin automatically clears saved collection credentials, token,
-IDs and dates before the next request, preventing cross-server reuse.
+Changing the origin automatically clears captured tokens and IDs before the
+next request, preventing cross-server reuse. It never rewrites request bodies.
 
 ## Variables
 
@@ -45,28 +48,26 @@ The environment contains **exactly two fields**:
 | `BASE_URL` | Render origin above; required |
 | `APP_TIMEZONE` | `Asia/Kolkata`; must match the backend's `APP_TIMEZONE` |
 
-Request payload fields and saved request state are **collection variables**, not
-environment settings. Open the collection → **Variables** to view or change them:
+Payload fields are **direct JSON values**, not environment or collection
+variables. Edit each request's **Body → raw → JSON** directly. Date filters and
+report dates are literal values in each request's **Params** tab.
+`APP_TIMEZONE` should match the backend; it does not automatically change dates.
+
+Only captured response values and a server-switch guard are collection variables:
 
 | Collection variable | Initial value / behavior |
 | --- | --- |
-| `name` | `Postman Demo Patient` |
-| `role` | `patient`; can be changed to `doctor`, which still has own-data access only |
-| `email` | Blank; Register generates a unique synthetic address if empty |
-| `password` | Blank; Register generates a random demo password if empty |
 | `access_token` | Blank; Login fills it automatically |
 | `user_id` | Set by successful Register/Login |
-| `reading_date` | Blank; filled once with today in `APP_TIMEZONE`; can be set to a past date |
-| `reading_slot` | `morning_fasting`; also accepts `after_breakfast`, `after_lunch`, `after_dinner` |
 | `reading_id` | Saved only by a successful Create request |
-| `selected_date` | Defaults once to `reading_date`; used by all three report queries |
 | `created_reading_id` | Cleanup guard; do not edit manually |
 | `deleted_reading_id` | Saved after a successful DELETE for the final 404 check |
 | `active_base_url` | Internal guard; automatically tracks the selected server |
 
-No real password or token is bundled. Postman stores generated demo credentials
-in collection variables, which may sync with your Postman workspace and are not
-a secret vault. Use synthetic accounts only with this saved workflow.
+No real password or token is bundled. The password in the example JSON bodies
+is a public dummy value; replace it for your synthetic account. Bodies and
+collection variables may sync with Postman and are not a secret vault.
+Use synthetic accounts only with this saved workflow.
 Do not commit or share populated **collection** exports, and
 remember that Postman Console can display request Authorization headers.
 
@@ -76,20 +77,59 @@ descriptions are included on each request inside Postman.
 
 ## Common workflows
 
+### Direct JSON payload examples
+
+**Register** — edit the values directly:
+
+```json
+{
+  "name": "Postman Demo Patient",
+  "email": "postman-demo@example.com",
+  "password": "Demo-password-123!",
+  "role": "patient"
+}
+```
+
+**Login** — enter the same credentials as Register:
+
+```json
+{
+  "email": "postman-demo@example.com",
+  "password": "Demo-password-123!"
+}
+```
+
+**Create reading**:
+
+```json
+{ "date": "2026-01-15", "slot": "morning_fasting", "value": 100 }
+```
+
+**Update reading**:
+
+```json
+{ "value": 125 }
+```
+
+There are no `{{name}}`, `{{email}}`, `{{role}}`, date, slot or password
+placeholders in request bodies. Scripts never generate credentials or rewrite
+payloads. Tokens and IDs are captured automatically after successful responses.
+
 ### New synthetic account and complete lifecycle
 
-Leave `email` and `password` empty, run the entire collection once in order.
-Registration generates credentials; Login captures the token. Create captures
-the reading ID used by retrieval, update, validation and cleanup.
+Choose a unique synthetic email in Register and copy the same email/password
+into Login. Run the entire collection once in order. Login captures the token.
+Create captures the reading ID used by retrieval, update, validation and cleanup.
 
-For a fresh full run, clear `email` and `password` first. Otherwise registration
-correctly receives 409 because that account already exists. There is no
-automatic retry of a POST, PATCH, or DELETE.
+For a fresh full run, choose another email in **both** JSON bodies. Otherwise
+registration correctly receives 409 because that account already exists.
+No POST, PATCH or DELETE is automatically retried. If you edit the Create
+date/slot, copy those values into **Reject duplicate date and slot** too.
 
 ### Existing account, read-only exploration
 
 First send Health to select/warm up the server (this clears state on origin
-changes). Set synthetic account credentials in collection Variables.
+changes). Edit the Login JSON body with your synthetic account credentials.
 Send **Login** (not Register), then
 **Current user**, either list endpoint, or reports. Do not run the entire
 collection or cleanup against an important account. Login clears old reading
@@ -97,7 +137,9 @@ IDs to prevent an account switch from carrying over cleanup targets.
 
 ### Change report date
 
-Set `selected_date` to a real `YYYY-MM-DD` date no later than today:
+Edit `date` directly in each report request's query parameters, for example
+`/api/reports/daily?date=2026-01-15`. Use a real `YYYY-MM-DD` date no later than
+today in the server's timezone. Queries are independent, not linked variables:
 
 - **Daily:** that date only, including the slot readings.
 - **Month-to-date:** first of that date's month through the selected date.
@@ -133,7 +175,7 @@ Postman's **Examples** menu; they are illustrative fixtures, not production data
 | 400 | Check JSON types, date, role, password length and unknown fields. Values must be integer JSON numbers 40–600. |
 | 401 | Log in again; the token may be missing, invalid or expired. Old bcrypt accounts require recovery/recreation. |
 | 404 for a reading | Not found or not owned by this user. It does not disclose another user's data. |
-| 409 on registration | Email exists. Login instead, or clear email/password for another synthetic account. |
+| 409 on registration | Email exists. Login instead, or edit both Register and Login JSON bodies with a new synthetic email. |
 | 409 on creation | That user already has a reading for this date and slot. Choose a different slot/date or intentionally clean up your own test reading. |
 | 413 | Request body exceeds the explicit 16KB limit. |
 | 429 | Auth endpoints are limited to 30 requests per IP per 15 minutes. Avoid repeated full runs. |
@@ -158,7 +200,10 @@ npx newman run sweety.postman_collection.json \
   --bail
 ```
 
-This runs the **write-enabled** full lifecycle against Render by default.
+Before running this command, edit the saved collection's Register and Login
+bodies with matching unique synthetic credentials (or save your edits in Postman
+and export the collection). This runs the **write-enabled** full lifecycle
+against Render by default. Repeated unedited runs can fail with duplicate email.
 For a read-only warm-up, add `--folder "00 — Health and cold-start warm-up"`.
 Newman's collection-variable changes are in memory unless you explicitly export
 the collection. Protect a populated collection export: it contains demo
