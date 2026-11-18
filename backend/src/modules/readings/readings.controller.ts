@@ -15,7 +15,7 @@ export class ReadingsController {
 
   @Get()
   list(@CurrentUser({ required: true }) user: User, @QueryParams() query: ListReadingsQueryDto) {
-    return this.service.list(user.id, query.date);
+    return this.service.list(user.id, query);
   }
 
   @Get('/:id')

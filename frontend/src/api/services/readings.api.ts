@@ -2,9 +2,18 @@ import { axiosInstance } from '../axiosInstance';
 import { API_ENDPOINTS } from '@/constants/endPoints';
 import type { CreateReadingPayload, ReadingResponse, ReadingsResponse } from '@/types/api';
 
-export async function listReadings(signal?: AbortSignal) {
-  const { data } = await axiosInstance.get<ReadingsResponse>(API_ENDPOINTS.readings.list, { signal });
-  return data.readings;
+export interface ListReadingsParams {
+  page?: number;
+  limit?: number;
+  date?: string;
+}
+
+export async function listReadings(params?: ListReadingsParams, signal?: AbortSignal) {
+  const { data } = await axiosInstance.get<ReadingsResponse>(API_ENDPOINTS.readings.list, {
+    params,
+    signal,
+  });
+  return data;
 }
 
 export async function createReading(payload: CreateReadingPayload) {
