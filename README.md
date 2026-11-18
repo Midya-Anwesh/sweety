@@ -25,11 +25,12 @@ exact frontend origin to the backend's comma-separated CORS allowlist.
 
 ## Features
 
-Signup/login with patient/doctor selection; own-data-only access; reading CRUD;
-one reading per slot/day, four slots, integer values 40–600 mg/dl; no future
-dates; grouped daily history with date/range filters; daily, month-to-date and
-previous-calendar-month reports. Reading history is ordered by creation time,
-not measurement date. Reading edits change only value.
+- **Authentication & session management:** Signup/login with patient/doctor role selection; JWT tokens persisted in `localStorage` with automatic verification via `/api/auth/me`; auto-redirection preventing re-login for authenticated sessions; logout confirmation modal.
+- **Form architecture:** Centralized `CustomInput` component with type-safe field binding via React Hook Form `Controller` and `render` prop (no direct `...register` calls).
+- **Reading CRUD:** One reading per slot per day, four distinct slots, integer values 40–600 mg/dl, strict rejection of future dates; updates modify glucose value only (date and slot immutable).
+- **Server pagination & navigation:** Backend paginated queries (`?page=1&limit=20`) with selectable page limits (`10`, `20`, `50`, `100`), returning structured metadata and responsive pagination button links with ellipsis windowing.
+- **Server-side date range filtering:** Network-level date filtering with `from` and `to` query parameters, both inclusive (`from <= date <= to`), with automatic validation rejecting inverted ranges.
+- **Reports:** Daily, month-to-date, and previous-calendar-month statistical reports calculated directly by backend endpoints.
 
 ## Current verification boundary
 

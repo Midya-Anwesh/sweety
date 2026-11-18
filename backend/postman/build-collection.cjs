@@ -72,6 +72,36 @@ const reading = {
   date: '2026-01-15', slot: 'morning_fasting', value: 100,
   createdAt: '2026-01-15T09:05:00.000Z', updatedAt: '2026-01-15T09:05:00.000Z',
 };
+const samplePagination = {
+  total: 1,
+  page: 1,
+  limit: 20,
+  totalPages: 1,
+  first: 1,
+  last: 1,
+  previous: null,
+  next: null,
+  current: 1,
+};
+const sampleLinked = [
+  { type: 'previous', label: 'previous', page: null, active: false, disabled: true },
+  { type: 'first', label: '1', page: 1, active: true, disabled: false },
+  { type: 'next', label: 'next', page: null, active: false, disabled: true },
+];
+const sampleListResponse = {
+  data: [reading],
+  readings: [reading],
+  pagination: samplePagination,
+  linked: sampleLinked,
+  links: { ...samplePagination, buttons: sampleLinked },
+};
+const emptyListResponse = {
+  data: [],
+  readings: [],
+  pagination: { ...samplePagination, total: 0, totalPages: 1 },
+  linked: sampleLinked,
+  links: { ...samplePagination, total: 0, totalPages: 1, buttons: sampleLinked },
+};
 const sampleReport = {
   type: 'daily', selectedDate: reading.date, from: reading.date, to: reading.date,
   count: 1, highest: 100, lowest: 100, average: 100, message: null, readings: [reading],
@@ -114,6 +144,7 @@ const collection = {
       'Roles: `patient` or `doctor`; both access only their own data. Passwords: Argon2id, 8–128 Unicode code points. JWT lifetime: server-configured, normally 7 days.',
       'Slots: `morning_fasting`, `after_breakfast`, `after_lunch`, `after_dinner`. Values: integer 40–600 mg/dl, maximum one reading per user/date/slot. Past dates are allowed; future dates are not.',
       'PATCH accepts only `{ "value": 125 }`. Date and slot are immutable. Reports: daily, month-to-date through the selected date, and the entire previous calendar month relative to that date.',
+      'Listing readings supports pagination (`?page=1&limit=20`), single date filter (`?date=YYYY-MM-DD`), and inclusive date range filter (`?from=YYYY-MM-DD&to=YYYY-MM-DD`), returning `{ data, readings, pagination, linked, links }`.',
       '## Security',
       'No API key is required. Protected routes inherit Bearer `{{access_token}}`. Use synthetic demo credentials only. Request bodies and collection variables may sync with Postman; never publish populated collections or share console Authorization headers.',
       'See the companion README for variables, sample responses, expected errors, rate limits, and a Newman command.',
@@ -204,13 +235,38 @@ const collection = {
           tests: ['pm.test("Correct reading", () => pm.expect(pm.response.json().reading.id).to.eql(pm.collectionVariables.get("reading_id")));'],
           examples: [example('Owned reading', 200, { reading }), example('Missing or not owned', 404, { message: 'Reading not found.' })],
         }),
-        request('List all own readings', 'GET', '/readings', 'Returns { readings: [] } when empty. Sorted by creation timestamp descending (ID descending breaks ties), not reading date. No pagination is implemented.', {
-          tests: ['pm.test("Own readings only", () => { const rows = pm.response.json().readings; pm.expect(rows).to.be.an("array"); rows.forEach(row => pm.expect(row.userId).to.eql(pm.collectionVariables.get("user_id"))); });'],
-          examples: [example('Readings', 200, { readings: [reading] }), example('Empty list', 200, { readings: [] })],
+        request('List all own readings', 'GET', '/readings', 'Returns paginated readings with metadata. Sorted by measurement date descending (ID descending breaks ties). Default page is 1, default limit is 20.', {
+          tests: [
+            'pm.test("Own readings returned", () => { const rows = pm.response.json().data; pm.expect(rows).to.be.an("array"); rows.forEach(row => pm.expect(row.userId).to.eql(pm.collectionVariables.get("user_id"))); });',
+            'pm.test("Pagination metadata present", () => { const body = pm.response.json(); pm.expect(body.pagination).to.be.an("object"); pm.expect(body.linked).to.be.an("array"); });',
+          ],
+          examples: [example('Readings list', 200, sampleListResponse), example('Empty list', 200, emptyListResponse)],
         }),
-        request('List own readings for date', 'GET', '/readings?date=2026-01-15', 'Edit the literal date query parameter (YYYY-MM-DD) directly. Invalid/future date → 400. Report dates are independent query parameters.', {
-          tests: ['pm.test("Date filter", () => { const date = new URL(pm.variables.replaceIn(pm.request.url.toString())).searchParams.get("date"); const rows = pm.response.json().readings; pm.expect(rows).to.be.an("array"); rows.forEach(row => pm.expect(row.date).to.eql(date)); });'],
-          examples: [example('Filtered readings', 200, { readings: [reading] })],
+        request('List own readings with pagination', 'GET', '/readings?page=1&limit=20', 'Explicit pagination with page and limit query parameters. Returns data, pagination metadata, and linked button elements for UI navigation.', {
+          tests: [
+            'pm.test("Pagination matches query", () => { const body = pm.response.json(); pm.expect(body.pagination.page).to.eql(1); pm.expect(body.pagination.limit).to.eql(20); pm.expect(body.linked).to.be.an("array"); });',
+          ],
+          examples: [example('Paginated readings', 200, sampleListResponse)],
+        }),
+        request('List own readings for date', 'GET', '/readings?date=2026-01-15', 'Edit the literal date query parameter (YYYY-MM-DD) directly. Invalid/future date → 400. Filters readings to the exact calendar date.', {
+          tests: ['pm.test("Date filter", () => { const date = new URL(pm.variables.replaceIn(pm.request.url.toString())).searchParams.get("date"); const rows = pm.response.json().data; pm.expect(rows).to.be.an("array"); rows.forEach(row => pm.expect(row.date).to.eql(date)); });'],
+          examples: [example('Filtered readings', 200, sampleListResponse)],
+        }),
+        request('List own readings for date range', 'GET', '/readings?from=2026-01-01&to=2026-01-15', 'Inclusive date range filter via from and to query parameters (YYYY-MM-DD). Both boundary dates are inclusive. Inverted range (from > to) or invalid date → 400.', {
+          tests: [
+            'pm.test("Date range filter inclusive", () => {',
+            '  const url = new URL(pm.variables.replaceIn(pm.request.url.toString()));',
+            '  const from = url.searchParams.get("from");',
+            '  const to = url.searchParams.get("to");',
+            '  const rows = pm.response.json().data;',
+            '  pm.expect(rows).to.be.an("array");',
+            '  rows.forEach(row => {',
+            '    if (from) pm.expect(row.date >= from).to.be.true;',
+            '    if (to) pm.expect(row.date <= to).to.be.true;',
+            '  });',
+            '});',
+          ],
+          examples: [example('Range filtered readings', 200, sampleListResponse)],
         }),
         request('Update glucose value only', 'PATCH', '/readings/{{reading_id}}', 'Changes value to 125 mg/dl. value is required, integer 40–600. Empty body, null/string/decimal/out-of-range value, date, slot or other unknown fields → 400. Correcting date/slot requires delete and recreate.', {
           before: readingGuard, body: { value: 125 },
@@ -257,6 +313,10 @@ const collection = {
         }),
         request('Reject invalid report date', 'GET', '/reports/daily?date=not-a-date', 'Calendar validation rejects this query. Missing or future dates are also rejected. Expected 400.', {
           before: bearerGuard, code: 400, tests: [errorShape],
+        }),
+        request('Reject inverted date range', 'GET', '/readings?from=2026-01-15&to=2026-01-01', 'When "from" date is after "to" date, the request is rejected with 400 Bad Request.', {
+          before: bearerGuard, code: 400, tests: [errorShape],
+          examples: [example('Inverted range error', 400, { message: '"from" date must be on or before "to" date.' })],
         }),
       ],
     },

@@ -135,6 +135,15 @@ Send **Login** (not Register), then
 collection or cleanup against an important account. Login clears old reading
 IDs to prevent an account switch from carrying over cleanup targets.
 
+### Paginated and filtered reading listings
+
+Readings listing supports pagination and date filtering:
+
+- **All readings (default pagination):** `GET /api/readings` returns the first 20 readings sorted by date descending, including pagination metadata (`total`, `page`, `limit`, `totalPages`) and pre-calculated UI navigation buttons (`linked`).
+- **Explicit pagination:** `GET /api/readings?page=1&limit=20`. Edit `page` and `limit` in the request's query parameters.
+- **Specific date:** `GET /api/readings?date=2026-01-15`.
+- **Date range:** `GET /api/readings?from=2026-01-01&to=2026-01-15`. Both boundary dates are **inclusive**. Supplying `from > to` or an invalid date string returns HTTP 400.
+
 ### Change report date
 
 Edit `date` directly in each report request's query parameters, for example
@@ -156,13 +165,12 @@ decimal; JSON may display `125` rather than `125.0`.
 | --- | --- |
 | 00 | Public health check / cold-start warm-up |
 | 01 | Register, Login with token capture, Current user |
-| 02 | Create, Get by ID, List all, List by date, PATCH value only |
+| 02 | Create, Get by ID, List all (paginated), List with pagination params, List by date, List by date range (inclusive), PATCH value only |
 | 03 | Daily, Month-to-date, Previous-calendar-month reports |
-| 04 | Missing auth 401, duplicate slot 409, invalid value 400, immutable date 400, invalid report date 400 |
+| 04 | Missing auth 401, duplicate slot 409, invalid value 400, immutable date 400, invalid report date 400, inverted date range 400 |
 | 05 | Guarded DELETE 204 and confirmation GET 404 |
 
-All 12 unique API method/path combinations are covered, with an additional date
-filter variant and validation requests. Each request documents its prerequisites,
+All 12 unique API method/path combinations are covered, with additional pagination, date filter and date-range variants, along with comprehensive validation requests. Each request documents its prerequisites,
 effects, expected status and behavior. Representative responses appear in
 Postman's **Examples** menu; they are illustrative fixtures, not production data.
 

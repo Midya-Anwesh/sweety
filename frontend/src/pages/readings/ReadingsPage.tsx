@@ -23,13 +23,18 @@ export default function ReadingsPage() {
   const [addState, setAddState] = useState<{ open: boolean; date?: string; slot?: Slot }>({ open: false });
   const [editing, setEditing] = useState<Reading | null>(null);
 
-  const queryParams = useMemo(() => {
-    return {
-      page,
-      limit,
-      date: filter.mode === 'date' && filter.date ? filter.date : undefined,
-    };
-  }, [page, limit, filter]);
+  const rangeError =
+    filter.mode === 'range' && filter.from && filter.to && filter.from > filter.to
+      ? '"From" must be on or before "To".'
+      : null;
+
+  const queryParams = {
+    page,
+    limit,
+    date: filter.mode === 'date' && filter.date ? filter.date : undefined,
+    from: filter.mode === 'range' && filter.from && !rangeError ? filter.from : undefined,
+    to: filter.mode === 'range' && filter.to && !rangeError ? filter.to : undefined,
+  };
 
   const q = useReadingsQuery(queryParams);
   const slow = useDelayed(q.isFetching && !q.data);
@@ -49,19 +54,7 @@ export default function ReadingsPage() {
   const linked = q.data?.linked ?? [];
   const total = pagination?.total ?? all.length;
 
-  const rangeError =
-    filter.mode === 'range' && filter.from && filter.to && filter.from > filter.to
-      ? '"From" must be on or before "To".'
-      : null;
-
-  const filtered = useMemo(() => {
-    if (filter.mode === 'range' && !rangeError) {
-      return all.filter((r) => (!filter.from || r.date >= filter.from) && (!filter.to || r.date <= filter.to));
-    }
-    return all;
-  }, [all, filter, rangeError]);
-
-  const groups = useMemo(() => groupByDay(filtered), [filtered]);
+  const groups = useMemo(() => groupByDay(all), [all]);
   const firstName = name.trim().split(/\s+/)[0] ?? '';
 
   return (

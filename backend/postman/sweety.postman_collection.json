@@ -3,7 +3,7 @@
     "_postman_id": "5a19f2ad-2b8b-4a35-8410-c0b0b79bb712",
     "name": "Sweety — Blood Glucose Tracker API",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "# Sweety API\n\nImport the companion **Sweety — Render** environment and select it before sending requests.\n\nThe environment contains only `BASE_URL` and `APP_TIMEZONE`. Every URL uses `BASE_URL`, initially `https://sweety-qj4d.onrender.com` (without `/api` or a trailing slash). All payload fields use direct, editable JSON values. Only response-captured tokens/IDs and the server-switch guard use collection variables.\n\n## Cold starts\n\nSet Postman Settings → General → Request timeout in ms to **180000**. The first health request may take a minute or more. This timeout is a client setting, not an environment variable a collection can enforce.\n\n## Run order and side effects\n\nRun folders 00 → 05, in order, for a complete demonstration. This creates a synthetic account and one reading, edits that reading, then deletes only the reading created by this collection. The account remains because no user-delete API exists. Do not use real patient data.\n\nThe health folder is read-only. Running the entire collection against Render WILL write to the Supabase-backed service. The collection does not auto-run on import.\n\nBefore a full run, edit the Register JSON body with a unique synthetic email and a demo password, and enter the same email/password directly in the Login JSON body. Nothing generates or rewrites credentials. Reusing a registered email correctly returns 409. For an existing demo account, skip Register and start with Login.\n\nReading bodies and date query parameters have literal examples. Edit them directly; keep the duplicate-reading request aligned with Create and choose the report/filter dates you want. APP_TIMEZONE documents the server timezone; scripts do not rewrite dates.\n\nLogin saves `access_token` and `user_id` as collection variables. Creation saves `reading_id` and a cleanup guard. A failed login/create clears stale state rather than reusing another account or reading. Switching BASE_URL automatically clears captured tokens/IDs before sending.\n\n## API rules\n\nRoles: `patient` or `doctor`; both access only their own data. Passwords: Argon2id, 8–128 Unicode code points. JWT lifetime: server-configured, normally 7 days.\n\nSlots: `morning_fasting`, `after_breakfast`, `after_lunch`, `after_dinner`. Values: integer 40–600 mg/dl, maximum one reading per user/date/slot. Past dates are allowed; future dates are not.\n\nPATCH accepts only `{ \"value\": 125 }`. Date and slot are immutable. Reports: daily, month-to-date through the selected date, and the entire previous calendar month relative to that date.\n\n## Security\n\nNo API key is required. Protected routes inherit Bearer `{{access_token}}`. Use synthetic demo credentials only. Request bodies and collection variables may sync with Postman; never publish populated collections or share console Authorization headers.\n\nSee the companion README for variables, sample responses, expected errors, rate limits, and a Newman command."
+    "description": "# Sweety API\n\nImport the companion **Sweety — Render** environment and select it before sending requests.\n\nThe environment contains only `BASE_URL` and `APP_TIMEZONE`. Every URL uses `BASE_URL`, initially `https://sweety-qj4d.onrender.com` (without `/api` or a trailing slash). All payload fields use direct, editable JSON values. Only response-captured tokens/IDs and the server-switch guard use collection variables.\n\n## Cold starts\n\nSet Postman Settings → General → Request timeout in ms to **180000**. The first health request may take a minute or more. This timeout is a client setting, not an environment variable a collection can enforce.\n\n## Run order and side effects\n\nRun folders 00 → 05, in order, for a complete demonstration. This creates a synthetic account and one reading, edits that reading, then deletes only the reading created by this collection. The account remains because no user-delete API exists. Do not use real patient data.\n\nThe health folder is read-only. Running the entire collection against Render WILL write to the Supabase-backed service. The collection does not auto-run on import.\n\nBefore a full run, edit the Register JSON body with a unique synthetic email and a demo password, and enter the same email/password directly in the Login JSON body. Nothing generates or rewrites credentials. Reusing a registered email correctly returns 409. For an existing demo account, skip Register and start with Login.\n\nReading bodies and date query parameters have literal examples. Edit them directly; keep the duplicate-reading request aligned with Create and choose the report/filter dates you want. APP_TIMEZONE documents the server timezone; scripts do not rewrite dates.\n\nLogin saves `access_token` and `user_id` as collection variables. Creation saves `reading_id` and a cleanup guard. A failed login/create clears stale state rather than reusing another account or reading. Switching BASE_URL automatically clears captured tokens/IDs before sending.\n\n## API rules\n\nRoles: `patient` or `doctor`; both access only their own data. Passwords: Argon2id, 8–128 Unicode code points. JWT lifetime: server-configured, normally 7 days.\n\nSlots: `morning_fasting`, `after_breakfast`, `after_lunch`, `after_dinner`. Values: integer 40–600 mg/dl, maximum one reading per user/date/slot. Past dates are allowed; future dates are not.\n\nPATCH accepts only `{ \"value\": 125 }`. Date and slot are immutable. Reports: daily, month-to-date through the selected date, and the entire previous calendar month relative to that date.\n\nListing readings supports pagination (`?page=1&limit=20`), single date filter (`?date=YYYY-MM-DD`), and inclusive date range filter (`?from=YYYY-MM-DD&to=YYYY-MM-DD`), returning `{ data, readings, pagination, linked, links }`.\n\n## Security\n\nNo API key is required. Protected routes inherit Bearer `{{access_token}}`. Use synthetic demo credentials only. Request bodies and collection variables may sync with Postman; never publish populated collections or share console Authorization headers.\n\nSee the companion README for variables, sample responses, expected errors, rate limits, and a Newman command."
   },
   "auth": {
     "type": "bearer",
@@ -685,7 +685,7 @@
               }
             ],
             "url": "{{BASE_URL}}/api/readings",
-            "description": "Returns { readings: [] } when empty. Sorted by creation timestamp descending (ID descending breaks ties), not reading date. No pagination is implemented.\n\nExamples are illustrative, not captured production data."
+            "description": "Returns paginated readings with metadata. Sorted by measurement date descending (ID descending breaks ties). Default page is 1, default limit is 20.\n\nExamples are illustrative, not captured production data."
           },
           "event": [
             {
@@ -694,14 +694,15 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
-                  "pm.test(\"Own readings only\", () => { const rows = pm.response.json().readings; pm.expect(rows).to.be.an(\"array\"); rows.forEach(row => pm.expect(row.userId).to.eql(pm.collectionVariables.get(\"user_id\"))); });"
+                  "pm.test(\"Own readings returned\", () => { const rows = pm.response.json().data; pm.expect(rows).to.be.an(\"array\"); rows.forEach(row => pm.expect(row.userId).to.eql(pm.collectionVariables.get(\"user_id\"))); });",
+                  "pm.test(\"Pagination metadata present\", () => { const body = pm.response.json(); pm.expect(body.pagination).to.be.an(\"object\"); pm.expect(body.linked).to.be.an(\"array\"); });"
                 ]
               }
             }
           ],
           "response": [
             {
-              "name": "Readings",
+              "name": "Readings list",
               "status": "OK",
               "code": 200,
               "header": [
@@ -712,7 +713,7 @@
               ],
               "_postman_previewlanguage": "json",
               "cookie": [],
-              "body": "{\n  \"readings\": [\n    {\n      \"id\": \"20000000-0000-4000-8000-000000000001\",\n      \"userId\": \"10000000-0000-4000-8000-000000000001\",\n      \"date\": \"2026-01-15\",\n      \"slot\": \"morning_fasting\",\n      \"value\": 100,\n      \"createdAt\": \"2026-01-15T09:05:00.000Z\",\n      \"updatedAt\": \"2026-01-15T09:05:00.000Z\"\n    }\n  ]\n}",
+              "body": "{\n  \"data\": [\n    {\n      \"id\": \"20000000-0000-4000-8000-000000000001\",\n      \"userId\": \"10000000-0000-4000-8000-000000000001\",\n      \"date\": \"2026-01-15\",\n      \"slot\": \"morning_fasting\",\n      \"value\": 100,\n      \"createdAt\": \"2026-01-15T09:05:00.000Z\",\n      \"updatedAt\": \"2026-01-15T09:05:00.000Z\"\n    }\n  ],\n  \"readings\": [\n    {\n      \"id\": \"20000000-0000-4000-8000-000000000001\",\n      \"userId\": \"10000000-0000-4000-8000-000000000001\",\n      \"date\": \"2026-01-15\",\n      \"slot\": \"morning_fasting\",\n      \"value\": 100,\n      \"createdAt\": \"2026-01-15T09:05:00.000Z\",\n      \"updatedAt\": \"2026-01-15T09:05:00.000Z\"\n    }\n  ],\n  \"pagination\": {\n    \"total\": 1,\n    \"page\": 1,\n    \"limit\": 20,\n    \"totalPages\": 1,\n    \"first\": 1,\n    \"last\": 1,\n    \"previous\": null,\n    \"next\": null,\n    \"current\": 1\n  },\n  \"linked\": [\n    {\n      \"type\": \"previous\",\n      \"label\": \"previous\",\n      \"page\": null,\n      \"active\": false,\n      \"disabled\": true\n    },\n    {\n      \"type\": \"first\",\n      \"label\": \"1\",\n      \"page\": 1,\n      \"active\": true,\n      \"disabled\": false\n    },\n    {\n      \"type\": \"next\",\n      \"label\": \"next\",\n      \"page\": null,\n      \"active\": false,\n      \"disabled\": true\n    }\n  ],\n  \"links\": {\n    \"total\": 1,\n    \"page\": 1,\n    \"limit\": 20,\n    \"totalPages\": 1,\n    \"first\": 1,\n    \"last\": 1,\n    \"previous\": null,\n    \"next\": null,\n    \"current\": 1,\n    \"buttons\": [\n      {\n        \"type\": \"previous\",\n        \"label\": \"previous\",\n        \"page\": null,\n        \"active\": false,\n        \"disabled\": true\n      },\n      {\n        \"type\": \"first\",\n        \"label\": \"1\",\n        \"page\": 1,\n        \"active\": true,\n        \"disabled\": false\n      },\n      {\n        \"type\": \"next\",\n        \"label\": \"next\",\n        \"page\": null,\n        \"active\": false,\n        \"disabled\": true\n      }\n    ]\n  }\n}",
               "originalRequest": {
                 "method": "GET",
                 "header": [
@@ -722,7 +723,7 @@
                   }
                 ],
                 "url": "{{BASE_URL}}/api/readings",
-                "description": "Returns { readings: [] } when empty. Sorted by creation timestamp descending (ID descending breaks ties), not reading date. No pagination is implemented.\n\nExamples are illustrative, not captured production data."
+                "description": "Returns paginated readings with metadata. Sorted by measurement date descending (ID descending breaks ties). Default page is 1, default limit is 20.\n\nExamples are illustrative, not captured production data."
               }
             },
             {
@@ -737,7 +738,7 @@
               ],
               "_postman_previewlanguage": "json",
               "cookie": [],
-              "body": "{\n  \"readings\": []\n}",
+              "body": "{\n  \"data\": [],\n  \"readings\": [],\n  \"pagination\": {\n    \"total\": 0,\n    \"page\": 1,\n    \"limit\": 20,\n    \"totalPages\": 1,\n    \"first\": 1,\n    \"last\": 1,\n    \"previous\": null,\n    \"next\": null,\n    \"current\": 1\n  },\n  \"linked\": [\n    {\n      \"type\": \"previous\",\n      \"label\": \"previous\",\n      \"page\": null,\n      \"active\": false,\n      \"disabled\": true\n    },\n    {\n      \"type\": \"first\",\n      \"label\": \"1\",\n      \"page\": 1,\n      \"active\": true,\n      \"disabled\": false\n    },\n    {\n      \"type\": \"next\",\n      \"label\": \"next\",\n      \"page\": null,\n      \"active\": false,\n      \"disabled\": true\n    }\n  ],\n  \"links\": {\n    \"total\": 0,\n    \"page\": 1,\n    \"limit\": 20,\n    \"totalPages\": 1,\n    \"first\": 1,\n    \"last\": 1,\n    \"previous\": null,\n    \"next\": null,\n    \"current\": 1,\n    \"buttons\": [\n      {\n        \"type\": \"previous\",\n        \"label\": \"previous\",\n        \"page\": null,\n        \"active\": false,\n        \"disabled\": true\n      },\n      {\n        \"type\": \"first\",\n        \"label\": \"1\",\n        \"page\": 1,\n        \"active\": true,\n        \"disabled\": false\n      },\n      {\n        \"type\": \"next\",\n        \"label\": \"next\",\n        \"page\": null,\n        \"active\": false,\n        \"disabled\": true\n      }\n    ]\n  }\n}",
               "originalRequest": {
                 "method": "GET",
                 "header": [
@@ -747,7 +748,60 @@
                   }
                 ],
                 "url": "{{BASE_URL}}/api/readings",
-                "description": "Returns { readings: [] } when empty. Sorted by creation timestamp descending (ID descending breaks ties), not reading date. No pagination is implemented.\n\nExamples are illustrative, not captured production data."
+                "description": "Returns paginated readings with metadata. Sorted by measurement date descending (ID descending breaks ties). Default page is 1, default limit is 20.\n\nExamples are illustrative, not captured production data."
+              }
+            }
+          ]
+        },
+        {
+          "name": "List own readings with pagination",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{BASE_URL}}/api/readings?page=1&limit=20",
+            "description": "Explicit pagination with page and limit query parameters. Returns data, pagination metadata, and linked button elements for UI navigation.\n\nExamples are illustrative, not captured production data."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Pagination matches query\", () => { const body = pm.response.json(); pm.expect(body.pagination.page).to.eql(1); pm.expect(body.pagination.limit).to.eql(20); pm.expect(body.linked).to.be.an(\"array\"); });"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "Paginated readings",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "_postman_previewlanguage": "json",
+              "cookie": [],
+              "body": "{\n  \"data\": [\n    {\n      \"id\": \"20000000-0000-4000-8000-000000000001\",\n      \"userId\": \"10000000-0000-4000-8000-000000000001\",\n      \"date\": \"2026-01-15\",\n      \"slot\": \"morning_fasting\",\n      \"value\": 100,\n      \"createdAt\": \"2026-01-15T09:05:00.000Z\",\n      \"updatedAt\": \"2026-01-15T09:05:00.000Z\"\n    }\n  ],\n  \"readings\": [\n    {\n      \"id\": \"20000000-0000-4000-8000-000000000001\",\n      \"userId\": \"10000000-0000-4000-8000-000000000001\",\n      \"date\": \"2026-01-15\",\n      \"slot\": \"morning_fasting\",\n      \"value\": 100,\n      \"createdAt\": \"2026-01-15T09:05:00.000Z\",\n      \"updatedAt\": \"2026-01-15T09:05:00.000Z\"\n    }\n  ],\n  \"pagination\": {\n    \"total\": 1,\n    \"page\": 1,\n    \"limit\": 20,\n    \"totalPages\": 1,\n    \"first\": 1,\n    \"last\": 1,\n    \"previous\": null,\n    \"next\": null,\n    \"current\": 1\n  },\n  \"linked\": [\n    {\n      \"type\": \"previous\",\n      \"label\": \"previous\",\n      \"page\": null,\n      \"active\": false,\n      \"disabled\": true\n    },\n    {\n      \"type\": \"first\",\n      \"label\": \"1\",\n      \"page\": 1,\n      \"active\": true,\n      \"disabled\": false\n    },\n    {\n      \"type\": \"next\",\n      \"label\": \"next\",\n      \"page\": null,\n      \"active\": false,\n      \"disabled\": true\n    }\n  ],\n  \"links\": {\n    \"total\": 1,\n    \"page\": 1,\n    \"limit\": 20,\n    \"totalPages\": 1,\n    \"first\": 1,\n    \"last\": 1,\n    \"previous\": null,\n    \"next\": null,\n    \"current\": 1,\n    \"buttons\": [\n      {\n        \"type\": \"previous\",\n        \"label\": \"previous\",\n        \"page\": null,\n        \"active\": false,\n        \"disabled\": true\n      },\n      {\n        \"type\": \"first\",\n        \"label\": \"1\",\n        \"page\": 1,\n        \"active\": true,\n        \"disabled\": false\n      },\n      {\n        \"type\": \"next\",\n        \"label\": \"next\",\n        \"page\": null,\n        \"active\": false,\n        \"disabled\": true\n      }\n    ]\n  }\n}",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{BASE_URL}}/api/readings?page=1&limit=20",
+                "description": "Explicit pagination with page and limit query parameters. Returns data, pagination metadata, and linked button elements for UI navigation.\n\nExamples are illustrative, not captured production data."
               }
             }
           ]
@@ -763,7 +817,7 @@
               }
             ],
             "url": "{{BASE_URL}}/api/readings?date=2026-01-15",
-            "description": "Edit the literal date query parameter (YYYY-MM-DD) directly. Invalid/future date → 400. Report dates are independent query parameters.\n\nExamples are illustrative, not captured production data."
+            "description": "Edit the literal date query parameter (YYYY-MM-DD) directly. Invalid/future date → 400. Filters readings to the exact calendar date.\n\nExamples are illustrative, not captured production data."
           },
           "event": [
             {
@@ -772,7 +826,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
-                  "pm.test(\"Date filter\", () => { const date = new URL(pm.variables.replaceIn(pm.request.url.toString())).searchParams.get(\"date\"); const rows = pm.response.json().readings; pm.expect(rows).to.be.an(\"array\"); rows.forEach(row => pm.expect(row.date).to.eql(date)); });"
+                  "pm.test(\"Date filter\", () => { const date = new URL(pm.variables.replaceIn(pm.request.url.toString())).searchParams.get(\"date\"); const rows = pm.response.json().data; pm.expect(rows).to.be.an(\"array\"); rows.forEach(row => pm.expect(row.date).to.eql(date)); });"
                 ]
               }
             }
@@ -790,7 +844,7 @@
               ],
               "_postman_previewlanguage": "json",
               "cookie": [],
-              "body": "{\n  \"readings\": [\n    {\n      \"id\": \"20000000-0000-4000-8000-000000000001\",\n      \"userId\": \"10000000-0000-4000-8000-000000000001\",\n      \"date\": \"2026-01-15\",\n      \"slot\": \"morning_fasting\",\n      \"value\": 100,\n      \"createdAt\": \"2026-01-15T09:05:00.000Z\",\n      \"updatedAt\": \"2026-01-15T09:05:00.000Z\"\n    }\n  ]\n}",
+              "body": "{\n  \"data\": [\n    {\n      \"id\": \"20000000-0000-4000-8000-000000000001\",\n      \"userId\": \"10000000-0000-4000-8000-000000000001\",\n      \"date\": \"2026-01-15\",\n      \"slot\": \"morning_fasting\",\n      \"value\": 100,\n      \"createdAt\": \"2026-01-15T09:05:00.000Z\",\n      \"updatedAt\": \"2026-01-15T09:05:00.000Z\"\n    }\n  ],\n  \"readings\": [\n    {\n      \"id\": \"20000000-0000-4000-8000-000000000001\",\n      \"userId\": \"10000000-0000-4000-8000-000000000001\",\n      \"date\": \"2026-01-15\",\n      \"slot\": \"morning_fasting\",\n      \"value\": 100,\n      \"createdAt\": \"2026-01-15T09:05:00.000Z\",\n      \"updatedAt\": \"2026-01-15T09:05:00.000Z\"\n    }\n  ],\n  \"pagination\": {\n    \"total\": 1,\n    \"page\": 1,\n    \"limit\": 20,\n    \"totalPages\": 1,\n    \"first\": 1,\n    \"last\": 1,\n    \"previous\": null,\n    \"next\": null,\n    \"current\": 1\n  },\n  \"linked\": [\n    {\n      \"type\": \"previous\",\n      \"label\": \"previous\",\n      \"page\": null,\n      \"active\": false,\n      \"disabled\": true\n    },\n    {\n      \"type\": \"first\",\n      \"label\": \"1\",\n      \"page\": 1,\n      \"active\": true,\n      \"disabled\": false\n    },\n    {\n      \"type\": \"next\",\n      \"label\": \"next\",\n      \"page\": null,\n      \"active\": false,\n      \"disabled\": true\n    }\n  ],\n  \"links\": {\n    \"total\": 1,\n    \"page\": 1,\n    \"limit\": 20,\n    \"totalPages\": 1,\n    \"first\": 1,\n    \"last\": 1,\n    \"previous\": null,\n    \"next\": null,\n    \"current\": 1,\n    \"buttons\": [\n      {\n        \"type\": \"previous\",\n        \"label\": \"previous\",\n        \"page\": null,\n        \"active\": false,\n        \"disabled\": true\n      },\n      {\n        \"type\": \"first\",\n        \"label\": \"1\",\n        \"page\": 1,\n        \"active\": true,\n        \"disabled\": false\n      },\n      {\n        \"type\": \"next\",\n        \"label\": \"next\",\n        \"page\": null,\n        \"active\": false,\n        \"disabled\": true\n      }\n    ]\n  }\n}",
               "originalRequest": {
                 "method": "GET",
                 "header": [
@@ -800,7 +854,70 @@
                   }
                 ],
                 "url": "{{BASE_URL}}/api/readings?date=2026-01-15",
-                "description": "Edit the literal date query parameter (YYYY-MM-DD) directly. Invalid/future date → 400. Report dates are independent query parameters.\n\nExamples are illustrative, not captured production data."
+                "description": "Edit the literal date query parameter (YYYY-MM-DD) directly. Invalid/future date → 400. Filters readings to the exact calendar date.\n\nExamples are illustrative, not captured production data."
+              }
+            }
+          ]
+        },
+        {
+          "name": "List own readings for date range",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{BASE_URL}}/api/readings?from=2026-01-01&to=2026-01-15",
+            "description": "Inclusive date range filter via from and to query parameters (YYYY-MM-DD). Both boundary dates are inclusive. Inverted range (from > to) or invalid date → 400.\n\nExamples are illustrative, not captured production data."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Date range filter inclusive\", () => {",
+                  "  const url = new URL(pm.variables.replaceIn(pm.request.url.toString()));",
+                  "  const from = url.searchParams.get(\"from\");",
+                  "  const to = url.searchParams.get(\"to\");",
+                  "  const rows = pm.response.json().data;",
+                  "  pm.expect(rows).to.be.an(\"array\");",
+                  "  rows.forEach(row => {",
+                  "    if (from) pm.expect(row.date >= from).to.be.true;",
+                  "    if (to) pm.expect(row.date <= to).to.be.true;",
+                  "  });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "Range filtered readings",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "_postman_previewlanguage": "json",
+              "cookie": [],
+              "body": "{\n  \"data\": [\n    {\n      \"id\": \"20000000-0000-4000-8000-000000000001\",\n      \"userId\": \"10000000-0000-4000-8000-000000000001\",\n      \"date\": \"2026-01-15\",\n      \"slot\": \"morning_fasting\",\n      \"value\": 100,\n      \"createdAt\": \"2026-01-15T09:05:00.000Z\",\n      \"updatedAt\": \"2026-01-15T09:05:00.000Z\"\n    }\n  ],\n  \"readings\": [\n    {\n      \"id\": \"20000000-0000-4000-8000-000000000001\",\n      \"userId\": \"10000000-0000-4000-8000-000000000001\",\n      \"date\": \"2026-01-15\",\n      \"slot\": \"morning_fasting\",\n      \"value\": 100,\n      \"createdAt\": \"2026-01-15T09:05:00.000Z\",\n      \"updatedAt\": \"2026-01-15T09:05:00.000Z\"\n    }\n  ],\n  \"pagination\": {\n    \"total\": 1,\n    \"page\": 1,\n    \"limit\": 20,\n    \"totalPages\": 1,\n    \"first\": 1,\n    \"last\": 1,\n    \"previous\": null,\n    \"next\": null,\n    \"current\": 1\n  },\n  \"linked\": [\n    {\n      \"type\": \"previous\",\n      \"label\": \"previous\",\n      \"page\": null,\n      \"active\": false,\n      \"disabled\": true\n    },\n    {\n      \"type\": \"first\",\n      \"label\": \"1\",\n      \"page\": 1,\n      \"active\": true,\n      \"disabled\": false\n    },\n    {\n      \"type\": \"next\",\n      \"label\": \"next\",\n      \"page\": null,\n      \"active\": false,\n      \"disabled\": true\n    }\n  ],\n  \"links\": {\n    \"total\": 1,\n    \"page\": 1,\n    \"limit\": 20,\n    \"totalPages\": 1,\n    \"first\": 1,\n    \"last\": 1,\n    \"previous\": null,\n    \"next\": null,\n    \"current\": 1,\n    \"buttons\": [\n      {\n        \"type\": \"previous\",\n        \"label\": \"previous\",\n        \"page\": null,\n        \"active\": false,\n        \"disabled\": true\n      },\n      {\n        \"type\": \"first\",\n        \"label\": \"1\",\n        \"page\": 1,\n        \"active\": true,\n        \"disabled\": false\n      },\n      {\n        \"type\": \"next\",\n        \"label\": \"next\",\n        \"page\": null,\n        \"active\": false,\n        \"disabled\": true\n      }\n    ]\n  }\n}",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{BASE_URL}}/api/readings?from=2026-01-01&to=2026-01-15",
+                "description": "Inclusive date range filter via from and to query parameters (YYYY-MM-DD). Both boundary dates are inclusive. Inverted range (from > to) or invalid date → 400.\n\nExamples are illustrative, not captured production data."
               }
             }
           ]
@@ -1372,6 +1489,68 @@
                   "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
                   "pm.test(\"Readable error\", () => pm.expect(pm.response.json().message).to.be.a(\"string\").and.not.empty);"
                 ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reject inverted date range",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{BASE_URL}}/api/readings?from=2026-01-15&to=2026-01-01",
+            "description": "When \"from\" date is after \"to\" date, the request is rejected with 400 Bad Request.\n\nExamples are illustrative, not captured production data."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"access_token\")) { pm.execution.skipRequest(); throw new Error(\"Set access_token or complete the preceding setup request first.\"); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Readable error\", () => pm.expect(pm.response.json().message).to.be.a(\"string\").and.not.empty);"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "Inverted range error",
+              "status": "Bad Request",
+              "code": 400,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "_postman_previewlanguage": "json",
+              "cookie": [],
+              "body": "{\n  \"message\": \"\\\"from\\\" date must be on or before \\\"to\\\" date.\"\n}",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{BASE_URL}}/api/readings?from=2026-01-15&to=2026-01-01",
+                "description": "When \"from\" date is after \"to\" date, the request is rejected with 400 Bad Request.\n\nExamples are illustrative, not captured production data."
               }
             }
           ]

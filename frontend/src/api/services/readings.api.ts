@@ -6,6 +6,8 @@ export interface ListReadingsParams {
   page?: number;
   limit?: number;
   date?: string;
+  from?: string;
+  to?: string;
 }
 
 export async function listReadings(params?: ListReadingsParams, signal?: AbortSignal) {

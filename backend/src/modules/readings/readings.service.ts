@@ -1,5 +1,6 @@
 import { BadRequestError, HttpError, NotFoundError } from 'routing-controllers';
 import { isUUID } from 'class-validator';
+import { Between, LessThanOrEqual, MoreThanOrEqual } from 'typeorm';
 import { AppDataSource } from '../../database/data-source';
 import { isUniqueViolation } from '../../common/errors';
 import { validateDate } from '../../common/dates/date.utils';
@@ -22,6 +23,8 @@ export class ReadingsService {
 
   async list(userId: string, queryOrDate?: ListReadingsQueryDto | string) {
     let date: string | undefined;
+    let from: string | undefined;
+    let to: string | undefined;
     let page = 1;
     let limit = 20;
 
@@ -29,6 +32,8 @@ export class ReadingsService {
       date = queryOrDate;
     } else if (queryOrDate) {
       date = queryOrDate.date;
+      from = queryOrDate.from;
+      to = queryOrDate.to;
       if (queryOrDate.page !== undefined && Number(queryOrDate.page) > 0) {
         page = Math.floor(Number(queryOrDate.page));
       }
@@ -37,9 +42,26 @@ export class ReadingsService {
       }
     }
 
-    if (date !== undefined) validateDate(date);
+    let dateCondition: any;
+    if (date !== undefined) {
+      validateDate(date);
+      dateCondition = date;
+    } else if (from !== undefined && to !== undefined) {
+      validateDate(from);
+      validateDate(to);
+      if (from > to) {
+        throw new BadRequestError('"from" date must be on or before "to" date.');
+      }
+      dateCondition = Between(from, to);
+    } else if (from !== undefined) {
+      validateDate(from);
+      dateCondition = MoreThanOrEqual(from);
+    } else if (to !== undefined) {
+      validateDate(to);
+      dateCondition = LessThanOrEqual(to);
+    }
 
-    const where = date === undefined ? { userId } : { userId, date };
+    const where = dateCondition === undefined ? { userId } : { userId, date: dateCondition };
     const [readings, total] = await this.readings.findAndCount({
       where,
       order: { date: 'DESC', id: 'DESC' },

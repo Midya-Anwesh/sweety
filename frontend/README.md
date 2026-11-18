@@ -39,23 +39,19 @@ VITE_APP_TIMEZONE=Asia/Kolkata
 
 ## Pages and behavior
 
-- `/`: Login, linking to signup. Authenticated users go to `/readings`.
-- `/signup`: Name, email, password and patient/doctor role. Registration returns
-  to login because the API does not issue a token during signup.
-- `/readings`: Protected readings and reports, with a collapsible sidebar and
-  logout. Both roles see only their own records.
+- `/`: Login, linking to signup. Stored JWT in `localStorage` is automatically verified on `/api/auth/me` on mount; authenticated users are redirected directly to `/readings` and prevented from accessing login again.
+- `/signup`: Name, email, password and patient/doctor role. Uses a custom reusable `CustomInput` component powered by React Hook Form's `Controller` and `render` method instead of direct `...register`. Registration redirects to login.
+- `/readings`: Protected readings and reports, with collapsible sidebar, logout confirmation dialog, and server-side paginated reading history. Both roles see only their own records.
 
 Daily rows contain the four slots. Add from the page or an empty slot, edit only
 an existing value, or confirm deletion of one reading. Date and slot are
 immutable when editing. Values must be whole numbers from 40 through 600 mg/dl.
 Dates cannot be in the future; one reading per slot per day, at most four.
 
-Rows are grouped client-side by reading date and sorted by the newest
-**creation timestamp within each group**, descending. Adding a historical
-reading therefore brings its day to the top. Editing a value does not change
-the creation timestamp. The API list also sorts by newest creation time.
-Date/date-range filters operate on the fetched list without changing this order.
-There is no server pagination or server date-range endpoint in this version.
+Readings are fetched with server-side pagination and inclusive date filtering:
+- **Server-side pagination:** Supports configurable page limits (`10`, `20`, `50`, `100`), with interactive navigation buttons returned directly from the API (`previous`, `first`, ellipses, dynamic window of neighboring pages, `last`, `next`).
+- **Server-side date range filter:** Invokes a network request with `from` and `to` query parameters, with both boundary dates inclusive.
+- Rows are grouped by measurement date and sorted descending.
 
 Reports use the real API rather than statistics from the filtered table:
 

@@ -6,6 +6,14 @@ export class ListReadingsQueryDto {
   @IsString()
   date?: string;
 
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsString()
+  from?: string;
+
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsString()
+  to?: string;
+
   @IsOptional()
   @Type(() => Number)
   @IsInt()

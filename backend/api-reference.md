@@ -153,14 +153,59 @@ Protected. Request:
 
 ### GET `/api/readings`
 
-Protected; no payload. Optional query `date=YYYY-MM-DD`:
-`/api/readings?date=2026-01-15`.
+Protected; no payload. Supports query parameters for pagination and filtering:
 
-- **200:** `{ "readings": [<reading>, ...] }`. Only the caller's data, ordered by
-  creation timestamp descending, with ID descending to break ties. This is entry
-  order, not reading-date order. No matching rows: `{ "readings": [] }`.
-- Omitting `date` returns all own readings; pagination is not implemented.
-- **400:** supplied date is invalid or in the future.
+- `page`: optional integer, 1-based index (default `1`).
+- `limit`: optional integer, page size (default `20`).
+- `date`: optional `YYYY-MM-DD` string for exact date matching.
+- `from`: optional `YYYY-MM-DD` start date for inclusive range filtering.
+- `to`: optional `YYYY-MM-DD` end date for inclusive range filtering.
+
+Both `from` and `to` boundary dates are **inclusive** (`from <= date <= to`).
+
+Examples:
+- `/api/readings?page=1&limit=20`
+- `/api/readings?date=2026-01-15`
+- `/api/readings?from=2026-01-01&to=2026-01-15&page=1&limit=20`
+
+**200** shape:
+
+```json
+{
+  "data": [<reading>, ...],
+  "readings": [<reading>, ...],
+  "pagination": {
+    "total": 42,
+    "page": 1,
+    "limit": 20,
+    "totalPages": 3,
+    "first": 1,
+    "last": 3,
+    "previous": null,
+    "next": 2,
+    "current": 1
+  },
+  "linked": [
+    { "type": "previous", "label": "previous", "page": null, "active": false, "disabled": true },
+    { "type": "first", "label": "1", "page": 1, "active": true, "disabled": false },
+    { "type": "page", "label": "2", "page": 2, "active": false, "disabled": false },
+    { "type": "last", "label": "3", "page": 3, "active": false, "disabled": false },
+    { "type": "next", "label": "next", "page": 2, "active": false, "disabled": false }
+  ],
+  "links": {
+    "first": 1,
+    "last": 3,
+    "previous": null,
+    "next": 2,
+    "current": 1,
+    "buttons": [...]
+  }
+}
+```
+
+- When total pages exceed 7, the `linked` array includes `{ type: "ellipsis", label: "ellipces", page: null, active: false, disabled: true }` markers.
+- `data` and `readings` contain the items on the current page, ordered by measurement date descending (ID descending breaks ties).
+- **400:** supplied date is invalid, future date, or `from` is after `to` (`"from" date must be on or before "to" date.`).
 - **401:** unauthenticated.
 
 ### GET `/api/readings/:id`
