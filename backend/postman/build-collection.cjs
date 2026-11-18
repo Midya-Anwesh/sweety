@@ -252,7 +252,7 @@ const collection = {
           tests: ['pm.test("Date filter", () => { const date = new URL(pm.variables.replaceIn(pm.request.url.toString())).searchParams.get("date"); const rows = pm.response.json().data; pm.expect(rows).to.be.an("array"); rows.forEach(row => pm.expect(row.date).to.eql(date)); });'],
           examples: [example('Filtered readings', 200, sampleListResponse)],
         }),
-        request('List own readings for date range', 'GET', '/readings?from=2026-01-01&to=2026-01-15', 'Inclusive date range filter via from and to query parameters (YYYY-MM-DD). Both boundary dates are inclusive. Inverted range (from > to) or invalid date → 400.', {
+        request('List own readings for date range', 'GET', '/readings?from=2026-01-01&to=2026-01-15', 'Inclusive date range filter via from and to query parameters (YYYY-MM-DD), also accepting date as an alias for to when from is supplied (e.g. ?from=2026-01-01&date=2026-01-15). Both boundary dates are inclusive. Inverted range (from > to) or invalid date → 400.', {
           tests: [
             'pm.test("Date range filter inclusive", () => {',
             '  const url = new URL(pm.variables.replaceIn(pm.request.url.toString()));',

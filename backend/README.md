@@ -99,7 +99,7 @@ Authorization: Bearer <token returned by login>
 | POST | `/api/readings` | `{ date, slot, value }` (201) |
 | GET | `/api/readings` | Own readings, paginated (`page=1&limit=20`), sorted by date descending |
 | GET | `/api/readings?date=YYYY-MM-DD` | Own readings for a specific date |
-| GET | `/api/readings?from=YYYY-MM-DD&to=YYYY-MM-DD` | Own readings for inclusive date range |
+| GET | `/api/readings?from=YYYY-MM-DD&to=YYYY-MM-DD` | Own readings for inclusive date range (accepts `&date=` as `to` alias) |
 | GET | `/api/readings/:id` | Own reading |
 | PATCH | `/api/readings/:id` | `{ value }`; date and slot cannot be changed |
 | DELETE | `/api/readings/:id` | Delete own reading (204, no response body) |

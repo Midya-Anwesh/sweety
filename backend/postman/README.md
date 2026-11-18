@@ -142,7 +142,7 @@ Readings listing supports pagination and date filtering:
 - **All readings (default pagination):** `GET /api/readings` returns the first 20 readings sorted by date descending, including pagination metadata (`total`, `page`, `limit`, `totalPages`) and pre-calculated UI navigation buttons (`linked`).
 - **Explicit pagination:** `GET /api/readings?page=1&limit=20`. Edit `page` and `limit` in the request's query parameters.
 - **Specific date:** `GET /api/readings?date=2026-01-15`.
-- **Date range:** `GET /api/readings?from=2026-01-01&to=2026-01-15`. Both boundary dates are **inclusive**. Supplying `from > to` or an invalid date string returns HTTP 400.
+- **Date range:** `GET /api/readings?from=2026-01-01&to=2026-01-15` (or `?from=2026-01-01&date=2026-01-15`). Both boundary dates are **inclusive**. Supplying `from > to` or an invalid date string returns HTTP 400.
 
 ### Change report date
 

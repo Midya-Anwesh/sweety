@@ -870,7 +870,7 @@
               }
             ],
             "url": "{{BASE_URL}}/api/readings?from=2026-01-01&to=2026-01-15",
-            "description": "Inclusive date range filter via from and to query parameters (YYYY-MM-DD). Both boundary dates are inclusive. Inverted range (from > to) or invalid date → 400.\n\nExamples are illustrative, not captured production data."
+            "description": "Inclusive date range filter via from and to query parameters (YYYY-MM-DD), also accepting date as an alias for to when from is supplied (e.g. ?from=2026-01-01&date=2026-01-15). Both boundary dates are inclusive. Inverted range (from > to) or invalid date → 400.\n\nExamples are illustrative, not captured production data."
           },
           "event": [
             {
@@ -917,7 +917,7 @@
                   }
                 ],
                 "url": "{{BASE_URL}}/api/readings?from=2026-01-01&to=2026-01-15",
-                "description": "Inclusive date range filter via from and to query parameters (YYYY-MM-DD). Both boundary dates are inclusive. Inverted range (from > to) or invalid date → 400.\n\nExamples are illustrative, not captured production data."
+                "description": "Inclusive date range filter via from and to query parameters (YYYY-MM-DD), also accepting date as an alias for to when from is supplied (e.g. ?from=2026-01-01&date=2026-01-15). Both boundary dates are inclusive. Inverted range (from > to) or invalid date → 400.\n\nExamples are illustrative, not captured production data."
               }
             }
           ]
