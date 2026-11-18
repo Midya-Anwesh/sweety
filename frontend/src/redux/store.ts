@@ -1,7 +1,7 @@
 import { configureStore } from '@reduxjs/toolkit';
 import { useDispatch, useSelector, type TypedUseSelectorHook } from 'react-redux';
 import authReducer from './slices/auth.slice';
-import { saveSession } from '@/lib/sessionStorage';
+import { saveSession } from '@/lib/localStorage';
 
 export const store = configureStore({ reducer: { auth: authReducer } });
 

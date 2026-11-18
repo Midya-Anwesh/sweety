@@ -6,7 +6,7 @@ import { endSession } from '@/lib/session';
 import { cx, initials } from '@/lib/utils';
 import { ROUTES } from '@/constants/routes';
 import { BrandMark } from '@/components/common/Brand';
-import { STORAGE_AVAILABLE } from '@/lib/sessionStorage';
+import { STORAGE_AVAILABLE } from '@/lib/localStorage';
 
 export function AppShell({ children }: { children: ReactNode }) {
   const user = useAppSelector((s) => s.auth.user);

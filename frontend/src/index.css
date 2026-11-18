@@ -69,7 +69,12 @@ a { color: hsl(var(--ink)); }
 .field-error { margin: 0; font-size: 12.5px; color: hsl(var(--danger)); font-weight: 500; }
 .input { width: 100%; padding: 11px 13px; border-radius: 10px; border: 1px solid hsl(var(--line)); background: hsl(var(--card)); transition: border-color .15s, box-shadow .15s; }
 .input:focus { outline: none; border-color: hsl(var(--ink)); box-shadow: 0 0 0 3px hsl(var(--ink) / .1); }
-.input[aria-invalid] { border-color: hsl(var(--danger)); }
+.input[aria-invalid], .input-error { border-color: hsl(var(--danger)); }
+.input-non-oriented { display: flex; }
+.flex-col { flex-direction: column; }
+.input-label { font-size: 13px; font-weight: 600; padding: 0; }
+.color-input-wrapper { display: flex; align-items: center; }
+.rounded-color-input { width: 44px; height: 44px; border-radius: 10px; border: 1px solid hsl(var(--line)); cursor: pointer; }
 .input-sm { padding: 7px 10px; font-size: 14px; width: auto; }
 .input-value { font-family: var(--font-mono); font-size: 22px; }
 .pw-wrap { position: relative; }

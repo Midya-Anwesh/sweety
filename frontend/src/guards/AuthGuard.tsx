@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Navigate, Outlet } from 'react-router';
+import { Navigate, Outlet, useLocation } from 'react-router';
 import { RotateCw } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@/redux/store';
 import { userVerified } from '@/redux/slices/auth.slice';
@@ -13,6 +13,7 @@ import { SlowNotice } from '@/components/common/Notice';
 
 export function AuthGuard() {
   const { token, verified } = useAppSelector((s) => s.auth);
+  const location = useLocation();
   const dispatch = useAppDispatch();
   const me = useMeQuery(token, !verified);
   const slow = useDelayed(Boolean(token) && !verified && me.isFetching);
@@ -21,7 +22,7 @@ export function AuthGuard() {
     if (me.data && !verified) dispatch(userVerified(me.data));
   }, [me.data, verified, dispatch]);
 
-  if (!token) return <Navigate to={ROUTES.login} replace />;
+  if (!token) return <Navigate to={ROUTES.login} state={{ from: location }} replace />;
   if (verified) return <Outlet />;
 
   if (me.isError && getStatus(me.error) !== 401) {

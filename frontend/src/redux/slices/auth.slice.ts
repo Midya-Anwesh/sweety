@@ -1,5 +1,5 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
-import { loadSession } from '@/lib/sessionStorage';
+import { loadSession } from '@/lib/localStorage';
 import type { User } from '@/types/models';
 
 export type AuthNotice = 'expired' | null;

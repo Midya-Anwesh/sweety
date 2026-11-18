@@ -3,7 +3,7 @@ import { useForm, type Resolver } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import { Trash2 } from 'lucide-react';
 import { Modal } from '@/components/common/Modal';
-import { Field } from '@/components/common/Field';
+import { CustomInput } from '@/components/common/CustomInput';
 import { Notice, SlowNotice } from '@/components/common/Notice';
 import { UNIT, VALUE_MAX, VALUE_MIN, slotLabel } from '@/constants/slots';
 import { editSchema } from '@/validation/schemas';
@@ -19,7 +19,7 @@ export function EditReadingDialog({ reading, onClose }: Props) {
   const { updateMutation, deleteMutation } = useReadingMutation();
   const [confirming, setConfirming] = useState(false);
   const slow = useDelayed(updateMutation.isPending || deleteMutation.isPending);
-  const { register, handleSubmit, reset, setError, formState: { errors } } = useForm<{ value: number }>({
+  const { control, handleSubmit, reset, setError, formState: { errors } } = useForm<{ value: number }>({
     resolver: yupResolver(editSchema) as unknown as Resolver<{ value: number }>,
   });
 
@@ -73,9 +73,23 @@ export function EditReadingDialog({ reading, onClose }: Props) {
         </div>
       ) : (
         <form className="form" onSubmit={handleSubmit(onSave)} noValidate>
-          <Field id="edit-value" label={`Reading (${UNIT})`} error={errors.value?.message} hint={`Only the value can change. Whole number ${VALUE_MIN}-${VALUE_MAX}.`}>
-            <input id="edit-value" type="number" inputMode="numeric" step={1} min={VALUE_MIN} max={VALUE_MAX} className="input input-value" {...register('value', { valueAsNumber: true })} aria-invalid={!!errors.value || undefined} data-testid="input-edit-value" autoFocus />
-          </Field>
+          <CustomInput
+            control={control}
+            name="value"
+            fieldName="value"
+            id="edit-value"
+            inptType="number"
+            label={`Reading (${UNIT})`}
+            hint={`Only the value can change. Whole number ${VALUE_MIN}-${VALUE_MAX}.`}
+            inputMode="numeric"
+            step={1}
+            min={VALUE_MIN}
+            max={VALUE_MAX}
+            className="input-value"
+            valueAsNumber
+            autoFocus
+            testId="input-edit-value"
+          />
           {updateMutation.isError && !errors.value && <Notice tone="error" testId="error-edit-reading">{describeError(updateMutation.error)}</Notice>}
           <SlowNotice show={slow} />
           <div className="form-actions split">
