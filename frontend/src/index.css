@@ -260,8 +260,15 @@ a { color: hsl(var(--ink)); }
 .storage-note { margin: 0; font-size: 12px; padding: 8px 10px; border-radius: 10px; background: hsl(var(--accent-soft)); color: hsl(14 55% 36%); }
 .is-collapsed .storage-note { display: none; }
 
+.table-footer { display: flex; justify-content: flex-end; align-items: center; padding: 10px 14px; background: hsl(var(--paper-2) / .5); border-top: 1px solid hsl(var(--line) / .7); }
+.table-limit-control { font-size: 13px; font-weight: 500; color: hsl(var(--ink-soft)); }
+.select-page-limit { cursor: pointer; }
+
 /* Pagination */
 .pagination { display: flex; flex-direction: column; align-items: center; gap: 12px; margin-top: 24px; padding: 12px 0; }
+.pagination-meta-row { display: flex; align-items: center; justify-content: center; gap: 16px; flex-wrap: wrap; }
+.pagination-limit-control { font-size: 13px; font-weight: 500; color: hsl(var(--ink-soft)); }
+.select-pagination-limit { cursor: pointer; }
 .pagination-info { margin: 0; font-size: 13px; color: hsl(var(--ink-soft)); text-align: center; }
 .pagination-info strong { color: hsl(var(--ink)); }
 .pagination-total { opacity: 0.85; }

@@ -5,19 +5,39 @@ interface Props {
   linked: PaginationButton[];
   onPageChange: (page: number) => void;
   pagination?: PaginationMeta;
+  limit?: number;
+  onLimitChange?: (limit: number) => void;
 }
 
-export function Pagination({ linked, onPageChange, pagination }: Props) {
+export function Pagination({ linked, onPageChange, pagination, limit, onLimitChange }: Props) {
   if (!linked || linked.length === 0) return null;
 
   return (
     <nav className="pagination" aria-label="Pagination navigation" data-testid="pagination-nav">
-      {pagination && (
-        <p className="pagination-info" data-testid="text-pagination-info">
-          Page <strong>{pagination.page}</strong> of <strong>{pagination.totalPages}</strong>
-          {pagination.total > 0 && <span className="pagination-total"> ({pagination.total} total)</span>}
-        </p>
-      )}
+      <div className="pagination-meta-row">
+        {pagination && (
+          <p className="pagination-info" data-testid="text-pagination-info">
+            Page <strong>{pagination.page}</strong> of <strong>{pagination.totalPages}</strong>
+            {pagination.total > 0 && <span className="pagination-total"> ({pagination.total} total)</span>}
+          </p>
+        )}
+        {onLimitChange && (
+          <label className="inline-field pagination-limit-control">
+            <span>Show:</span>
+            <select
+              className="input input-sm select-pagination-limit"
+              value={limit ?? 20}
+              onChange={(e) => onLimitChange(Number(e.target.value))}
+              data-testid="select-pagination-limit"
+            >
+              <option value={10}>10 / page</option>
+              <option value={20}>20 / page</option>
+              <option value={50}>50 / page</option>
+              <option value={100}>100 / page</option>
+            </select>
+          </label>
+        )}
+      </div>
       <div className="pagination-list" role="list">
         {linked.map((btn, index) => {
           if (btn.type === 'ellipsis' || btn.label === 'ellipces') {

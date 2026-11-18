@@ -18,6 +18,7 @@ import type { Reading, Slot } from '@/types/models';
 export default function ReadingsPage() {
   const name = useAppSelector((s) => s.auth.user?.name ?? '');
   const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(20);
   const [filter, setFilter] = useState<FilterState>(EMPTY_FILTER);
   const [addState, setAddState] = useState<{ open: boolean; date?: string; slot?: Slot }>({ open: false });
   const [editing, setEditing] = useState<Reading | null>(null);
@@ -25,16 +26,21 @@ export default function ReadingsPage() {
   const queryParams = useMemo(() => {
     return {
       page,
-      limit: 20,
+      limit,
       date: filter.mode === 'date' && filter.date ? filter.date : undefined,
     };
-  }, [page, filter]);
+  }, [page, limit, filter]);
 
   const q = useReadingsQuery(queryParams);
   const slow = useDelayed(q.isFetching && !q.data);
 
   const handleFilterChange = (nextFilter: FilterState) => {
     setFilter(nextFilter);
+    setPage(1);
+  };
+
+  const handleLimitChange = (nextLimit: number) => {
+    setLimit(nextLimit);
     setPage(1);
   };
 
@@ -117,8 +123,20 @@ export default function ReadingsPage() {
           ) : (
             <>
               {q.isError && <Notice tone="error" testId="error-readings-refresh">Showing saved data; refresh failed: {describeError(q.error)}</Notice>}
-              <ReadingsTable groups={groups} onAdd={(date, slot) => setAddState({ open: true, date, slot })} onEdit={setEditing} />
-              <Pagination linked={linked} onPageChange={setPage} pagination={pagination} />
+              <ReadingsTable
+                groups={groups}
+                onAdd={(date, slot) => setAddState({ open: true, date, slot })}
+                onEdit={setEditing}
+                limit={limit}
+                onLimitChange={handleLimitChange}
+              />
+              <Pagination
+                linked={linked}
+                onPageChange={setPage}
+                pagination={pagination}
+                limit={limit}
+                onLimitChange={handleLimitChange}
+              />
             </>
           )}
         </section>
