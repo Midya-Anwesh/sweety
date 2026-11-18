@@ -161,12 +161,13 @@ Protected; no payload. Supports query parameters for pagination and filtering:
 - `from`: optional `YYYY-MM-DD` start date for inclusive range filtering.
 - `to`: optional `YYYY-MM-DD` end date for inclusive range filtering.
 
-Both `from` and `to` boundary dates are **inclusive** (`from <= date <= to`).
+Both `from` and `to` (or `date` as alias for `to` when `from` is supplied) boundary dates are **inclusive** (`from <= date <= to`).
 
 Examples:
 - `/api/readings?page=1&limit=20`
 - `/api/readings?date=2026-01-15`
 - `/api/readings?from=2026-01-01&to=2026-01-15&page=1&limit=20`
+- `/api/readings?from=2026-11-01&date=2026-11-18`
 
 **200** shape:
 

@@ -27,7 +27,26 @@ export function ReadingsFilters({ value, onChange, rangeError }: Props) {
             role="radio"
             aria-checked={value.mode === m.id}
             className={cx('seg', value.mode === m.id && 'is-on')}
-            onClick={() => onChange({ ...value, mode: m.id })}
+            onClick={() => {
+              if (m.id === 'range') {
+                const startOfMonth = `${today.slice(0, 7)}-01`;
+                onChange({
+                  mode: 'range',
+                  date: '',
+                  from: value.from || value.date || startOfMonth,
+                  to: value.to || value.date || today,
+                });
+              } else if (m.id === 'date') {
+                onChange({
+                  mode: 'date',
+                  date: value.date || value.to || value.from || today,
+                  from: '',
+                  to: '',
+                });
+              } else {
+                onChange(EMPTY_FILTER);
+              }
+            }}
             data-testid={`filter-mode-${m.id}`}
           >
             {m.label}

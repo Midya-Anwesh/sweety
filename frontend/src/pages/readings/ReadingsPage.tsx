@@ -28,13 +28,13 @@ export default function ReadingsPage() {
       ? '"From" must be on or before "To".'
       : null;
 
-  const queryParams = {
+  const queryParams = useMemo(() => ({
     page,
     limit,
     date: filter.mode === 'date' && filter.date ? filter.date : undefined,
     from: filter.mode === 'range' && filter.from && !rangeError ? filter.from : undefined,
     to: filter.mode === 'range' && filter.to && !rangeError ? filter.to : undefined,
-  };
+  }), [page, limit, filter.mode, filter.date, filter.from, filter.to, rangeError]);
 
   const q = useReadingsQuery(queryParams);
   const slow = useDelayed(q.isFetching && !q.data);

@@ -43,10 +43,19 @@ export class ReadingsService {
     }
 
     let dateCondition: any;
-    if (date !== undefined) {
-      validateDate(date);
-      dateCondition = date;
-    } else if (from !== undefined && to !== undefined) {
+
+    // Allow ?from=YYYY-MM-DD&date=YYYY-MM-DD where date acts as the end date
+    if (from !== undefined && date !== undefined && to === undefined) {
+      to = date;
+      date = undefined;
+    }
+    // Allow ?date=YYYY-MM-DD&to=YYYY-MM-DD where date acts as the start date
+    if (to !== undefined && date !== undefined && from === undefined) {
+      from = date;
+      date = undefined;
+    }
+
+    if (from !== undefined && to !== undefined) {
       validateDate(from);
       validateDate(to);
       if (from > to) {
@@ -59,6 +68,9 @@ export class ReadingsService {
     } else if (to !== undefined) {
       validateDate(to);
       dateCondition = LessThanOrEqual(to);
+    } else if (date !== undefined) {
+      validateDate(date);
+      dateCondition = date;
     }
 
     const where = dateCondition === undefined ? { userId } : { userId, date: dateCondition };
