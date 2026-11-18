@@ -7,14 +7,17 @@ import { cx, initials } from '@/lib/utils';
 import { ROUTES } from '@/constants/routes';
 import { BrandMark } from '@/components/common/Brand';
 import { STORAGE_AVAILABLE } from '@/lib/localStorage';
+import { Modal } from '@/components/common/Modal';
 
 export function AppShell({ children }: { children: ReactNode }) {
   const user = useAppSelector((s) => s.auth.user);
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const navigate = useNavigate();
 
-  const logout = () => {
+  const handleLogout = () => {
+    setShowLogoutConfirm(false);
     endSession(null);
     navigate(ROUTES.login, { replace: true });
   };
@@ -60,12 +63,53 @@ export function AppShell({ children }: { children: ReactNode }) {
             <span className="nav-label">Readings</span>
           </Link>
         </nav>
-        <button className="nav-item logout" onClick={logout} data-testid="button-logout" title="Log out">
+        <button
+          className="nav-item logout"
+          onClick={() => {
+            setMobileOpen(false);
+            setShowLogoutConfirm(true);
+          }}
+          data-testid="button-logout"
+          title="Log out"
+        >
           <LogOut size={18} aria-hidden />
           <span className="nav-label">Log out</span>
         </button>
       </aside>
       <main className="content">{children}</main>
+
+      <Modal
+        open={showLogoutConfirm}
+        onOpenChange={setShowLogoutConfirm}
+        title="Log out of Sweety?"
+        description="Are you sure you want to end your session? You will need to log in again to access your journal."
+        testId="dialog-logout-confirm"
+      >
+        <div className="form">
+          <p className="confirm-copy">
+            Any unsaved changes will be lost. You will be redirected to the login page.
+          </p>
+          <div className="form-actions">
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() => setShowLogoutConfirm(false)}
+              data-testid="button-cancel-logout"
+              autoFocus
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="btn btn-danger"
+              onClick={handleLogout}
+              data-testid="button-confirm-logout"
+            >
+              Log out
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
