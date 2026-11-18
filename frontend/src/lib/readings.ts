@@ -14,11 +14,7 @@ export function groupByDay(readings: Reading[]): DayGroup[] {
     g.count += 1;
     if (Date.parse(r.createdAt) > Date.parse(g.latest)) g.latest = r.createdAt;
   }
-  return [...map.values()].sort((a, b) => {
-    const diff = Date.parse(b.latest) - Date.parse(a.latest);
-    if (diff !== 0 && !Number.isNaN(diff)) return diff;
-    return b.date.localeCompare(a.date);
-  });
+  return [...map.values()];
 }
 
 export function usedSlotsFor(readings: Reading[], date: string): Set<Slot> {
